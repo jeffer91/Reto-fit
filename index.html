@@ -185,6 +185,41 @@ th.sel { color: var(--accent); }
 .paynote { margin-top: 10px; }
 .paycopy { margin-top: 12px; width: 100%; }
 textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background: var(--bg); min-height: 180px; resize: vertical; }
+
+/* ===== Rediseño: resumen, tarjetas por persona, plegables ===== */
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.tile { background: var(--bg); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.tile .big { font-family: var(--font-display); font-size: 1.7rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.big.bad { color: var(--bad); } .big.good { color: var(--good); } .big.gold { color: var(--gold); }
+.wide { width: 100%; }
+.upload { gap: 10px; }
+.big-btn { display: block; width: 100%; padding: 15px 16px; font-size: 1.05rem; }
+.people { display: flex; flex-direction: column; gap: 8px; }
+.person { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.person.open { border-color: var(--accent); }
+.p-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; background: none; border: 0; color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
+.p-head:hover { background: var(--accent-soft); }
+.avatar { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font: 700 1.15rem var(--font-display); }
+.p-main { min-width: 0; display: flex; flex-direction: column; }
+.p-main b { font-size: 1.02rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.p-sub { color: var(--muted); font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chev { width: 10px; height: 10px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg) translate(-2px, -2px); transition: transform .15s; }
+.person.open .chev { transform: rotate(-135deg) translate(-2px, -2px); }
+.p-body { border-top: 1px solid var(--line); padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.paybox { background: var(--bg); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.payline { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: .9rem; }
+.paybox .paybtn { align-self: flex-start; }
+.hist-fold summary { color: var(--accent); }
+.hist-fold .table-wrap { margin-top: 8px; }
+.folds { display: flex; flex-direction: column; gap: 8px; }
+.fold { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+.fold > summary { list-style: none; padding: 14px 16px; font: 700 1.15rem var(--font-display); letter-spacing: .01em; color: var(--fg); display: flex; justify-content: space-between; align-items: center; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::after { content: ""; width: 9px; height: 9px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); transition: transform .15s; }
+.fold[open] > summary::after { transform: rotate(-135deg); }
+.fold-body { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+.fold-body .table-wrap, .fold-body .rank { border-radius: 8px; }
+@media (max-width: 480px) { .tile .big { font-size: 1.45rem; } .p-head { gap: 10px; padding: 12px; } }
 @media (max-width: 480px) {
   .metrics, .grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rules { grid-template-columns: minmax(0, 1fr); }
@@ -197,7 +232,7 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
 <div class="wrap">
   <header>
     <h1>Reto Fit Familia</h1>
-    <p class="sub">Informes de la báscula, reglamento mensual y avance de cada uno.</p>
+    <p class="sub">Toca un nombre para ver su detalle.</p>
   </header>
 
   <div class="month-bar">
@@ -207,70 +242,60 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
 
   <div id="banner" class="status warn" hidden></div>
 
-  <section aria-labelledby="t-up">
-    <h2 id="t-up">Subir informes</h2>
-    <div class="panel">
-      <p class="hint">Elige uno o varios PDF del informe de la báscula. La app lee los valores directo del PDF; revisa cada tarjeta y toca "Guardar todos".</p>
-      <div class="row-btns">
-        <label class="primary" for="file-in">Elegir informes</label>
+  <section aria-labelledby="t-sum">
+    <h2 id="t-sum" class="sr-only">Resumen</h2>
+    <div id="sum-area" class="panel"></div>
+  </section>
+
+  <section aria-labelledby="t-up" class="upload">
+    <h2 id="t-up" class="sr-only">Subir informes</h2>
+    <label class="primary big-btn" for="file-in">Elegir informes PDF</label>
+    <input id="file-in" type="file" accept="application/pdf,.pdf" multiple class="sr-only">
+    <div id="ocr-status" class="status info" hidden></div>
+    <div id="cards" class="cards"></div>
+    <div id="save-bar" class="row-btns" hidden>
+      <button type="button" class="primary" id="btn-save-all">Guardar todos</button>
+      <button type="button" class="ghost" id="btn-clear">Descartar todos</button>
+    </div>
+    <div id="save-status" class="status" hidden></div>
+  </section>
+
+  <section aria-labelledby="t-fam">
+    <div class="head-row">
+      <h2 id="t-fam">Familia</h2>
+      <span class="label" id="fam-note"></span>
+    </div>
+    <div id="fam-area" class="people"></div>
+  </section>
+
+  <div class="folds">
+    <details class="fold">
+      <summary>Ranking de avance</summary>
+      <div class="fold-body">
+        <p class="hint" id="rank-hint"></p>
+        <div class="chips" id="chips" role="group" aria-label="Medida para el ranking"></div>
+        <div id="rank-area"></div>
       </div>
-      <input id="file-in" type="file" accept="application/pdf,.pdf" multiple class="sr-only">
-      <div id="ocr-status" class="status info" hidden></div>
-      <div id="cards" class="cards"></div>
-      <div id="save-bar" class="row-btns" hidden>
-        <button type="button" class="primary" id="btn-save-all">Guardar todos</button>
-        <button type="button" class="ghost" id="btn-clear">Descartar todos</button>
+    </details>
+    <details class="fold">
+      <summary>Tabla de todos los meses</summary>
+      <div class="fold-body" id="tri-area"></div>
+    </details>
+    <details class="fold">
+      <summary>Reglamento</summary>
+      <div class="fold-body">
+        <ul class="rules" aria-label="Reglas">
+          <li><span class="badge b-star">★</span>Mejora sus medidas: gana una estrella dorada</li>
+          <li><span class="badge b-keep">$1</span>Se mantiene en sus medidas: paga $1</li>
+          <li><span class="badge b-worse">$5</span>Empeora sus medidas: paga $5</li>
+          <li><span class="badge b-free">$0</span>Puntuación corporal mayor a 75: no paga</li>
+        </ul>
+        <p class="hint">Se compara el informe del mes con el informe anterior de cada persona, usando el promedio del % de cambio de las 6 medidas. Mejora si avanza más de 0,5 %, empeora si retrocede más de 0,5 %, y se mantiene entre esos dos. Un informe por persona y mes; no se aceptan duplicados.</p>
       </div>
-      <div id="save-status" class="status" hidden></div>
-    </div>
-  </section>
-
-  <section aria-labelledby="t-rules">
-    <div class="head-row">
-      <h2 id="t-rules">Reglamento del mes</h2>
-      <span class="label" id="rules-month"></span>
-    </div>
-    <ul class="rules" aria-label="Reglas">
-      <li><span class="badge b-star">★</span>Mejora sus medidas: gana una estrella dorada</li>
-      <li><span class="badge b-keep">$1</span>Se mantiene en sus medidas: paga $1</li>
-      <li><span class="badge b-worse">$5</span>Empeora sus medidas: paga $5</li>
-      <li><span class="badge b-free">$0</span>Puntuación corporal mayor a 75: no paga</li>
-    </ul>
-    <p class="hint">Se compara el informe del mes con el informe anterior de cada persona, usando el promedio del % de cambio de las 6 medidas. Mejora si avanza más de 0,5 %, empeora si retrocede más de 0,5 %, y se mantiene entre esos dos.</p>
-    <div id="verdict-area"></div>
-  </section>
-
-  <section aria-labelledby="t-pay">
-    <div class="head-row">
-      <h2 id="t-pay">Lista de pagos</h2>
-      <span class="label" id="pay-month"></span>
-    </div>
-    <div id="pay-area"></div>
-  </section>
-
-  <section aria-labelledby="t-tri">
-    <h2 id="t-tri">Tabla de todos los meses</h2>
-    <div id="tri-area"></div>
-  </section>
-
-  <section aria-labelledby="t-rank">
-    <div class="head-row">
-      <h2 id="t-rank">Porcentaje de avance</h2>
-      <span class="label" id="rank-note"></span>
-    </div>
-    <p class="hint" id="rank-hint"></p>
-    <div class="chips" id="chips" role="group" aria-label="Medida para el ranking"></div>
-    <div id="rank-area"></div>
-  </section>
-
-  <section aria-labelledby="t-det">
-    <h2 id="t-det">Detalle por persona</h2>
-    <div id="detail-area"></div>
-  </section>
-
-  <section aria-labelledby="t-set">
-    <h2 id="t-set">Ajustes</h2>
-    <div class="panel">
+    </details>
+    <details class="fold">
+      <summary>Ajustes</summary>
+      <div class="fold-body">
       <div class="field">
         <b>Base de datos (Supabase)</b>
         <div id="sb-state" class="status info"></div>
@@ -292,9 +317,10 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
         <button type="button" class="ghost" id="btn-sb-off" hidden>Cambiar proyecto</button>
       </div>
       <div id="set-msg" class="status" hidden></div>
-      <p class="hint">Versión 2026-11-08e · Supabase</p>
-    </div>
-  </section>
+      <p class="hint">Versión 2026-11-08f · Supabase</p>
+</div>
+    </details>
+  </div>
 </div>
 <datalist id="names-dl"></datalist>
 <script>
@@ -484,6 +510,10 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
   const isAll = () => selMonth === ALL;
   const upTo = () => isAll() ? null : selMonth;
   const selLabel = () => isAll() ? "Todos los meses" : monthName(selMonth);
+  const monthWord = () => isAll() ? "todos los meses" : MONTHS[Number(selMonth.slice(5)) - 1];
+  const openSet = new Set();   // personas desplegadas
+  const isPaid = (name, ym) => !!(pagos.get(nameKey(name) + "|" + ym) || {}).pagado;
+
   function renderMonthSel() {
     const ms = allMonths();
     const opts = new Set(ms); opts.add(curMonth());
@@ -508,59 +538,324 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     });
     return t;
   }
-  function renderVerdictsAll() {
-    const area = $("verdict-area");
-    const ps = people(null);
-    if (!ps.length) { area.appendChild(el("div", "empty", "Sube informes para ver el acumulado de estrellas y pagos.")); return; }
-    const list = ps.map((p) => ({ p, t: totals(p) })).sort((a, b) => b.t.stars - a.t.stars || a.t.pay - b.t.pay || a.p.name.localeCompare(b.p.name, "es"));
-    const ul = el("ul", "verdicts");
-    let stars = 0, pay = 0;
-    list.forEach(({ p, t }) => {
-      stars += t.stars; pay += t.pay;
-      const li = el("li"); const d = el("div");
-      const n = p.list.length;
-      d.append(el("b", null, p.name), el("span", "why", n + (n === 1 ? " informe" : " informes") + " · " + (t.pay ? "pagos $" + t.pay + (t.debt ? " (debe $" + t.debt + ")" : " (al día)") : "sin pagos")));
-      li.append(d, el("span", "badge b-star", "★ " + t.stars));
-      ul.appendChild(li);
-    });
-    area.appendChild(ul);
-    const sum = el("div", "sum");
-    const a = el("div"); a.append(el("div", "label", "Total de pagos (todos los meses)"), el("div", "big", "$" + pay));
-    const b = el("div"); b.style.textAlign = "right"; b.append(el("div", "label", "Estrellas en total"), el("div", "big gold", "★ " + stars));
-    sum.append(a, b); area.appendChild(sum);
+  // Frase corta del resultado del mes
+  function shortWhy(v) {
+    switch (v.kind) {
+      case "star": return "Mejoró " + fmtPct(v.v);
+      case "keep": return "Se mantuvo " + fmtPct(v.v);
+      case "worse": return "Empeoró " + fmtPct(v.v);
+      case "free": return "No paga: más de " + RULES.exentoSobre + " puntos";
+      case "first": return "Primer informe";
+      default: return "Sin informe este mes";
+    }
   }
-  function renderVerdicts() {
-    $("rules-month").textContent = selLabel();
-    if (isAll()) { $("verdict-area").textContent = ""; renderVerdictsAll(); return; }
-    const area = $("verdict-area"); area.textContent = "";
-    const ps = people(selMonth);
-    if (!ps.length) { area.appendChild(el("div", "empty", "Sube los informes del mes para ver quién gana estrella y quién paga.")); return; }
-    const order = { star: 0, free: 1, keep: 2, worse: 3, first: 4, none: 5 };
-    const vs = ps.map((p) => ({ p, v: verdict(p.list, selMonth) }))
-      .sort((a, b) => order[a.v.kind] - order[b.v.kind] || (b.v.v || 0) - (a.v.v || 0) || a.p.name.localeCompare(b.p.name, "es"));
-    const ul = el("ul", "verdicts");
-    let total = 0, stars = 0;
-    vs.forEach(({ p, v }) => {
-      total += v.pay; if (v.star) stars++;
-      const li = el("li");
-      const d = el("div");
-      d.append(el("b", null, p.name), el("span", "why", v.why));
-      li.append(d, el("span", "badge " + v.cls, v.kind === "none" ? "Sin informe" : v.badge));
-      ul.appendChild(li);
-    });
-    area.appendChild(ul);
-    const sum = el("div", "sum");
-    const a = el("div"); a.append(el("div", "label", "Total a pagar en " + MONTHS[Number(selMonth.slice(5)) - 1]), el("div", "big", "$" + total));
-    const b = el("div"); b.style.textAlign = "right"; b.append(el("div", "label", "Estrellas del mes"), el("div", "big gold", "★ " + stars));
-    sum.append(a, b);
-    area.appendChild(sum);
+  async function setPaid(name, ym, monto, value) {
+    await rpc("marcar_pago", { p_pin: pin, p_persona: name, p_mes: ym, p_monto: monto, p_pagado: value });
+    pagos.set(nameKey(name) + "|" + ym, { pagado: value, monto });
   }
 
+  // ---------- Resumen ----------
+  function copyButton(area, getText) {
+    const cb = el("button", "ghost wide", "Copiar resumen para WhatsApp"); cb.type = "button";
+    const msg = el("div", "status"); msg.hidden = true;
+    cb.addEventListener("click", async () => {
+      const text = getText();
+      try { await navigator.clipboard.writeText(text); msg.className = "status ok"; msg.textContent = "Copiado. Pégalo en el grupo de la familia."; }
+      catch (_) {
+        msg.className = "status info"; msg.textContent = "";
+        const ta = el("textarea"); ta.value = text; ta.readOnly = true; ta.style.minHeight = "160px";
+        msg.append(el("div", null, "Mantén presionado el texto y elige Copiar:"), ta);
+        setTimeout(() => { ta.focus(); ta.select(); }, 0);
+      }
+      msg.hidden = false;
+    });
+    area.append(cb, msg);
+  }
+  function tile(label, value, cls) { const x = el("div", "tile"); x.append(el("div", "label", label), el("div", "big " + (cls || ""), value)); return x; }
+  function renderSummary() {
+    const area = $("sum-area"); area.textContent = "";
+    const ps = people(upTo());
+    if (!ps.length) { area.appendChild(el("div", "empty", "Todavía no hay informes. Toca \"Elegir informes PDF\" para subir el primero.")); return; }
+    const tiles = el("div", "tiles");
+    if (isAll()) {
+      const list = ps.map((p) => ({ p, t: totals(p) }));
+      const tot = list.reduce((s, x) => s + x.t.pay, 0), pend = list.reduce((s, x) => s + x.t.debt, 0), st = list.reduce((s, x) => s + x.t.stars, 0);
+      tiles.append(tile("Pagos", "$" + tot), tile("Pendiente", "$" + pend, pend ? "bad" : "good"), tile("Estrellas", "★ " + st, "gold"));
+      area.appendChild(tiles);
+      const debtors = list.filter((x) => x.t.debt > 0).sort((a, b) => b.t.debt - a.t.debt);
+      area.appendChild(el("p", "hint", debtors.length ? "Deben: " + debtors.map((x) => x.p.name + " $" + x.t.debt).join(", ") + "." : "Todos están al día con los pagos."));
+      copyButton(area, () => {
+        const L = ["Reto Fit Familia – Acumulado", "", "💰 Pagos:"];
+        const payers = list.filter((x) => x.t.pay > 0).sort((a, b) => b.t.debt - a.t.debt);
+        if (payers.length) payers.forEach(({ p, t }) => L.push("• " + p.name + ": total $" + t.pay + (t.debt ? " (debe $" + t.debt + ")" : " ✅ al día")));
+        else L.push("Nadie ha pagado todavía.");
+        L.push("Total: $" + tot + (pend ? " (pendiente $" + pend + ")" : ""));
+        const stars = list.filter((x) => x.t.stars > 0).sort((a, b) => b.t.stars - a.t.stars);
+        if (stars.length) L.push("", "⭐ Estrellas: " + stars.map((x) => x.p.name + " " + x.t.stars).join(", "));
+        return L.join("\n");
+      });
+      return;
+    }
+    const vs = ps.map((p) => ({ p, v: verdict(p.list, selMonth) }));
+    const payers = vs.filter((x) => x.v.pay > 0).sort((a, b) => b.v.pay - a.v.pay || a.p.name.localeCompare(b.p.name, "es"));
+    const tot = payers.reduce((s, x) => s + x.v.pay, 0), pend = payers.reduce((s, x) => s + (isPaid(x.p.name, selMonth) ? 0 : x.v.pay), 0);
+    const stars = vs.filter((x) => x.v.star);
+    tiles.append(tile("A pagar", "$" + tot), tile("Pendiente", "$" + pend, pend ? "bad" : "good"), tile("Estrellas", "★ " + stars.length, "gold"));
+    area.appendChild(tiles);
+    const lines = [];
+    lines.push(payers.length ? "Pagan: " + payers.map((x) => x.p.name + " $" + x.v.pay + (isPaid(x.p.name, selMonth) ? " ✓" : "")).join(", ") + "." : "Nadie paga en " + monthWord() + ".");
+    if (stars.length) lines.push("Estrella dorada: " + stars.map((x) => x.p.name).join(", ") + ".");
+    const none = vs.filter((x) => x.v.kind === "none");
+    if (none.length) lines.push("Falta el informe de: " + none.map((x) => x.p.name).join(", ") + ".");
+    lines.forEach((t) => area.appendChild(el("p", "hint", t)));
+    copyButton(area, () => {
+      const L = ["Reto Fit Familia – " + monthName(selMonth)];
+      if (payers.length) {
+        L.push("", "💰 Pagan:");
+        payers.forEach(({ p, v }) => L.push("• " + p.name + ": $" + v.pay + " (" + (v.kind === "worse" ? "empeoró" : "se mantuvo") + ")" + (isPaid(p.name, selMonth) ? " ✅ pagado" : "")));
+        L.push("Total: $" + tot + (pend !== tot ? " (pendiente $" + pend + ")" : ""));
+      } else L.push("", "Nadie paga este mes. 🎉");
+      if (stars.length) L.push("", "⭐ Estrella dorada: " + stars.map((x) => x.p.name).join(", "));
+      const free = vs.filter((x) => x.v.kind === "free");
+      if (free.length) L.push("🙌 No pagan por más de " + RULES.exentoSobre + " puntos: " + free.map((x) => x.p.name).join(", "));
+      return L.join("\n");
+    });
+  }
+
+  // ---------- Familia: tarjetas desplegables ----------
+  function renderFamily() {
+    $("fam-note").textContent = selLabel();
+    const area = $("fam-area"); area.textContent = "";
+    const ps = people(upTo());
+    if (!ps.length) { area.appendChild(el("div", "empty", "Aquí aparecerá cada miembro de la familia cuando suba su informe.")); return; }
+    const order = { star: 0, free: 1, keep: 2, worse: 3, first: 4, none: 5 };
+    const items = ps.map((p) => ({ p, v: isAll() ? null : verdict(p.list, selMonth), t: isAll() ? totals(p) : null }));
+    if (isAll()) items.sort((a, b) => b.t.stars - a.t.stars || a.t.pay - b.t.pay || a.p.name.localeCompare(b.p.name, "es"));
+    else items.sort((a, b) => order[a.v.kind] - order[b.v.kind] || (b.v.v || 0) - (a.v.v || 0) || a.p.name.localeCompare(b.p.name, "es"));
+    items.forEach((it) => area.appendChild(personCard(it)));
+  }
+  function personCard({ p, v, t }) {
+    const open = openSet.has(p.key);
+    const card = el("div", "person" + (open ? " open" : ""));
+    card.dataset.key = p.key;
+    const head = el("button", "p-head"); head.type = "button";
+    head.setAttribute("aria-expanded", String(open));
+    const bodyId = "pb-" + p.key.replace(/[^a-z0-9]/g, "_");
+    head.setAttribute("aria-controls", bodyId);
+    head.appendChild(el("span", "avatar", p.name.charAt(0).toUpperCase()));
+    const main = el("span", "p-main");
+    main.appendChild(el("b", null, p.name));
+    let sub, badge;
+    if (t) {
+      sub = (t.pay ? "Pagos $" + t.pay + (t.debt ? " · debe $" + t.debt : " · al día") : "Sin pagos") + " · " + p.list.length + (p.list.length === 1 ? " informe" : " informes");
+      badge = el("span", "badge b-star", "★ " + t.stars);
+    } else {
+      const paid = v.pay > 0 && isPaid(p.name, selMonth);
+      sub = shortWhy(v) + (v.pay > 0 ? (paid ? " · pagado" : " · pendiente") : "");
+      badge = el("span", "badge " + v.cls, v.kind === "none" ? "—" : v.badge + (paid ? " ✓" : ""));
+    }
+    main.appendChild(el("span", "p-sub", sub));
+    head.append(main, badge, el("span", "chev", ""));
+    head.addEventListener("click", () => {
+      if (openSet.has(p.key)) openSet.delete(p.key); else openSet.add(p.key);
+      pendingDelete = null;
+      const fresh = personCard({ p, v, t });
+      card.replaceWith(fresh);
+      if (openSet.has(p.key)) fresh.querySelector(".p-head").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+    card.appendChild(head);
+    if (open) { const body = personBody(p, v, t); body.id = bodyId; card.appendChild(body); }
+    return card;
+  }
+  function personBody(p, v, t) {
+    const body = el("div", "p-body");
+    const n = p.list.length;
+    const rerender = () => { renderSummary(); renderFamily(); renderRank(); renderTri(); };
+
+    // Pagos
+    if (t) {
+      const owed = t.months.filter((m) => m.v.pay > 0);
+      if (owed.length) {
+        const box = el("div", "paybox");
+        owed.forEach((m) => {
+          const row = el("div", "payline");
+          row.append(el("span", null, monthName(m.ym) + " · " + (m.v.kind === "worse" ? "empeoró" : "se mantuvo")), el("span", "paystate " + (m.paid ? "on" : "off"), "$" + m.v.pay + (m.paid ? " pagado" : " pendiente")));
+          box.appendChild(row);
+        });
+        if (canWrite() && t.debt) {
+          const b = el("button", "paybtn", "Marcar todo pagado ($" + t.debt + ")"); b.type = "button";
+          b.addEventListener("click", async () => {
+            b.disabled = true;
+            try { for (const m of owed.filter((x) => !x.paid)) await setPaid(p.name, m.ym, m.v.pay, true); showBanner(""); }
+            catch (e) { showBanner("No se pudo marcar el pago. " + sbWhy(e)); }
+            rerender();
+          });
+          box.appendChild(b);
+        }
+        body.appendChild(box);
+      }
+    } else if (v.pay > 0) {
+      const paid = isPaid(p.name, selMonth);
+      const box = el("div", "paybox");
+      const row = el("div", "payline");
+      row.append(el("span", null, "Paga $" + v.pay + " en " + monthWord()), el("span", "paystate " + (paid ? "on" : "off"), paid ? "Pagado" : "Pendiente"));
+      box.appendChild(row);
+      if (canWrite()) {
+        const b = el("button", "paybtn" + (paid ? " on" : ""), paid ? "Pagado ✓ (tocar para deshacer)" : "Marcar pagado"); b.type = "button";
+        b.addEventListener("click", async () => {
+          b.disabled = true;
+          try { await setPaid(p.name, selMonth, v.pay, !paid); showBanner(""); }
+          catch (e) { showBanner("No se pudo marcar el pago. " + sbWhy(e)); }
+          rerender();
+        });
+        box.appendChild(b);
+      }
+      body.appendChild(box);
+    }
+
+    // Explicación del resultado
+    if (v) body.appendChild(el("p", "hint", v.why));
+
+    // Medidas: comparadas con el informe anterior (vista mensual) o con el primero (acumulado)
+    const cur = v && v.kind !== "none" ? p.list.find((r) => r.mes === selMonth) : p.last;
+    const idx = p.list.indexOf(cur);
+    const base = t ? p.first : (idx > 0 ? p.list[idx - 1] : null);
+    if (v && v.kind === "none") body.appendChild(el("p", "hint", "Último informe: " + monthName(p.last.mes) + "."));
+    const lab = base && base !== cur ? "Cambio vs " + monthName(base.mes).toLowerCase() : "Punto de partida";
+    body.appendChild(el("div", "label", "Medidas de " + monthName(cur.mes).toLowerCase() + " · " + lab.toLowerCase()));
+    const grid = el("div", "metrics");
+    METRICS.forEach((m) => {
+      const c = el("div", "metric");
+      c.appendChild(el("span", "label", m.short));
+      const now = el("span", "now num", fmt(cur[m.key]));
+      if (m.unit) now.appendChild(el("small", null, m.unit));
+      c.appendChild(now);
+      if (base && base !== cur) {
+        const pv = pctProg(base, cur, m);
+        c.appendChild(el("span", "chg " + clsOf(pv, 2), deltaText(base, cur, m) + " · " + fmtPct(pctChange(base, cur, m))));
+      } else c.appendChild(el("span", "chg flat", "—"));
+      grid.appendChild(c);
+    });
+    body.appendChild(grid);
+    if (n > 1) {
+      const tp = totalProg(p.first, p.last);
+      const tl = el("div", "total");
+      tl.append(el("span", "label", "Avance desde " + monthName(p.first.mes).toLowerCase()), el("span", "big " + clsOf(tp, n), fmtPct(tp)));
+      body.appendChild(tl);
+      const chips = el("div", "chips"); chips.setAttribute("role", "group"); chips.setAttribute("aria-label", "Medida del gráfico");
+      const box = el("div", "chart-box");
+      const draw = () => {
+        chips.textContent = "";
+        METRICS.forEach((m) => {
+          const b = el("button", "chip", m.short); b.type = "button";
+          b.setAttribute("aria-pressed", String(m.key === chartMetric));
+          b.addEventListener("click", () => { chartMetric = m.key; draw(); });
+          chips.appendChild(b);
+        });
+        box.textContent = "";
+        box.appendChild(chart(p, METRICS.find((x) => x.key === chartMetric)));
+      };
+      draw();
+      body.append(chips, box);
+    }
+
+    // Historial
+    const det = el("details", "hist-fold");
+    det.appendChild(el("summary", null, "Historial de informes (" + n + ")"));
+    const tw = el("div", "table-wrap");
+    const tb_ = el("table", "hist");
+    const hr = el("tr");
+    ["Mes", ...METRICS.map((m) => m.short), ""].forEach((h) => hr.appendChild(el("th", null, h)));
+    const thead = el("thead"); thead.appendChild(hr); tb_.appendChild(thead);
+    const tb = el("tbody");
+    p.list.slice().reverse().forEach((r) => {
+      const tr = el("tr");
+      tr.appendChild(el("td", null, monthShort(r.mes)));
+      METRICS.forEach((m) => tr.appendChild(el("td", "num", fmt(r[m.key]))));
+      const td = el("td");
+      if (canWrite()) {
+        if (pendingDelete === r.id) {
+          const w = el("span", "confirm");
+          const y = el("button", "yes", "Borrar"); y.type = "button";
+          const no = el("button", "no", "No"); no.type = "button";
+          y.addEventListener("click", async () => {
+            y.disabled = true; no.disabled = true; y.textContent = "Borrando…";
+            try { await rpc("borrar_informe", { p_pin: pin, p_persona: r.persona, p_mes: r.mes }); await loadData(); showBanner(""); }
+            catch (e) { showBanner("No se pudo borrar. " + sbWhy(e)); }
+            pendingDelete = null; renderAll();
+          });
+          no.addEventListener("click", () => { pendingDelete = null; renderFamily(); });
+          w.append(y, no); td.appendChild(w);
+        } else {
+          const b = el("button", "del", "Borrar"); b.type = "button";
+          b.setAttribute("aria-label", "Borrar informe de " + monthName(r.mes));
+          b.addEventListener("click", () => { pendingDelete = r.id; renderFamily(); const d = document.querySelector('.person[data-key="' + p.key + '"] .hist-fold'); if (d) d.open = true; });
+          td.appendChild(b);
+        }
+      }
+      tr.appendChild(td);
+      tb.appendChild(tr);
+    });
+    if (pendingDelete && p.list.some((r) => r.id === pendingDelete)) det.open = true;
+    tb_.appendChild(tb); tw.appendChild(tb_); det.appendChild(tw);
+    body.appendChild(det);
+    return body;
+  }
+
+  // ---------- Ranking (plegado) ----------
+  const TOTAL = { key: "total", short: "Avance total" };
+  function renderRank() {
+    const c = $("chips"); c.textContent = "";
+    [TOTAL, ...METRICS].forEach((m) => {
+      const b = el("button", "chip", m.short); b.type = "button";
+      b.setAttribute("aria-pressed", String(m.key === rankMetric));
+      b.addEventListener("click", () => { rankMetric = m.key; renderRank(); });
+      c.appendChild(b);
+    });
+    const area = $("rank-area"); area.textContent = "";
+    const ps = people(upTo());
+    $("rank-hint").textContent = "Cambio desde el primer informe de cada persona hasta " + (isAll() ? "el último" : monthName(selMonth).toLowerCase()) + ".";
+    if (!ps.length) { area.appendChild(el("div", "empty", "Sube el primer informe para empezar.")); return; }
+    const isTotal = rankMetric === "total";
+    const m = METRICS.find((x) => x.key === rankMetric);
+    const score = (p) => isTotal ? totalProg(p.first, p.last) : pctProg(p.first, p.last, m);
+    const sorted = ps.slice().sort((a, b) => {
+      const aa = a.list.length > 1, bb = b.list.length > 1;
+      if (aa !== bb) return aa ? -1 : 1;
+      return score(b) - score(a) || a.name.localeCompare(b.name, "es");
+    });
+    const ul = el("ol", "rank");
+    let pos = 0;
+    sorted.forEach((p) => {
+      const has = p.list.length > 1; if (has) pos++;
+      const li = el("li"); li.tabIndex = 0;
+      li.appendChild(el("span", "pos", has ? String(pos) : "–"));
+      const who = el("div", "who");
+      who.appendChild(el("b", null, p.name));
+      const nm = p.list.length + (p.list.length === 1 ? " informe" : " informes");
+      who.appendChild(el("span", null, isTotal ? nm + " · desde " + monthName(p.first.mes).toLowerCase()
+        : fmt(p.first[m.key]) + " → " + fmt(p.last[m.key]) + (m.unit ? " " + m.unit : "") + " · " + nm));
+      li.appendChild(who);
+      const v = score(p);
+      li.appendChild(el("span", "delta " + clsOf(v, p.list.length), has ? fmtPct(v) : "Falta 2.º"));
+      const pick = () => {
+        openSet.add(p.key); renderFamily();
+        const node = document.querySelector('.person[data-key="' + p.key + '"]');
+        if (node) node.scrollIntoView({ behavior: "smooth", block: "start" });
+      };
+      li.addEventListener("click", pick);
+      li.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
+      ul.appendChild(li);
+    });
+    area.appendChild(ul);
+  }
+
+  // ---------- Tabla de todos los meses (plegada) ----------
   function renderTri() {
     const area = $("tri-area"); area.textContent = "";
     const ms = allMonths();
     const ps = people(null);
-    if (!ps.length) { area.appendChild(el("div", "empty", "Aquí se cruzan todas las personas con todos los meses: estrellas y pagos acumulados.")); return; }
+    if (!ps.length) { area.appendChild(el("div", "empty", "Aquí se cruzan todas las personas con todos los meses.")); return; }
     const wrap = el("div", "table-wrap");
     const t = el("table");
     const hr = el("tr");
@@ -595,268 +890,6 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     tr.append(el("td", "tot gold", String(gStars)), el("td", "tot", "$" + gPay), gd);
     tb.appendChild(tr);
     t.appendChild(tb); wrap.appendChild(t); area.appendChild(wrap);
-  }
-
-  const isPaid = (name, ym) => !!(pagos.get(nameKey(name) + "|" + ym) || {}).pagado;
-  function payText(ym, payers, stars, free) {
-    const L = ["Reto Fit Familia – " + monthName(ym)];
-    if (payers.length) {
-      L.push("", "💰 Pagan:");
-      payers.forEach(({ p, v }) => L.push("• " + p.name + ": $" + v.pay + " (" + (v.kind === "worse" ? "empeoró" : "se mantuvo") + ")" + (isPaid(p.name, ym) ? " ✅ pagado" : "")));
-      const tot = payers.reduce((s, x) => s + x.v.pay, 0), pend = payers.reduce((s, x) => s + (isPaid(x.p.name, ym) ? 0 : x.v.pay), 0);
-      L.push("Total: $" + tot + (pend !== tot ? " (pendiente $" + pend + ")" : ""));
-    } else L.push("", "Nadie paga este mes. 🎉");
-    if (stars.length) L.push("", "⭐ Estrella dorada: " + stars.map((x) => x.p.name).join(", "));
-    if (free.length) L.push("🙌 No pagan por más de " + RULES.exentoSobre + " puntos: " + free.map((x) => x.p.name).join(", "));
-    return L.join("\n");
-  }
-  function copyButton(area, getText) {
-    const cb = el("button", "ghost paycopy", "Copiar lista para WhatsApp"); cb.type = "button";
-    const msg = el("div", "status"); msg.hidden = true; msg.style.marginTop = "8px";
-    cb.addEventListener("click", async () => {
-      const text = getText();
-      try { await navigator.clipboard.writeText(text); msg.className = "status ok"; msg.textContent = "Lista copiada. Pégala en el grupo de la familia."; }
-      catch (_) {
-        msg.className = "status info"; msg.textContent = "";
-        const ta = el("textarea"); ta.value = text; ta.readOnly = true; ta.style.minHeight = "160px";
-        msg.append(el("div", null, "Mantén presionado el texto y elige Copiar:"), ta);
-        setTimeout(() => { ta.focus(); ta.select(); }, 0);
-      }
-      msg.hidden = false;
-    });
-    area.append(cb, msg);
-  }
-  function renderPagosAll() {
-    const area = $("pay-area");
-    const list = people(null).map((p) => ({ p, t: totals(p) })).filter((x) => x.t.pay > 0)
-      .sort((a, b) => b.t.debt - a.t.debt || b.t.pay - a.t.pay || a.p.name.localeCompare(b.p.name, "es"));
-    if (!list.length) { area.appendChild(el("div", "empty", "Nadie ha tenido que pagar todavía.")); return; }
-    const ul = el("ul", "verdicts");
-    list.forEach(({ p, t }) => {
-      const li = el("li"); const d = el("div");
-      const det = t.months.filter((m) => m.v.pay > 0).map((m) => monthShort(m.ym) + ": $" + m.v.pay + (m.paid ? " ✓" : "")).join(" · ");
-      d.append(el("b", null, p.name), el("span", "why", det));
-      const right = el("div", "payrow-right");
-      right.appendChild(el("span", "badge " + (t.debt ? "b-worse" : "b-free"), t.debt ? "Debe $" + t.debt : "Al día"));
-      if (canWrite() && t.debt) {
-        const b = el("button", "paybtn", "Marcar todo pagado"); b.type = "button";
-        b.addEventListener("click", async () => {
-          b.disabled = true;
-          try {
-            for (const m of t.months.filter((x) => x.v.pay > 0 && !x.paid)) {
-              await rpc("marcar_pago", { p_pin: pin, p_persona: p.name, p_mes: m.ym, p_monto: m.v.pay, p_pagado: true });
-              pagos.set(nameKey(p.name) + "|" + m.ym, { pagado: true, monto: m.v.pay });
-            }
-            showBanner("");
-          } catch (e) { showBanner("No se pudo marcar el pago. " + sbWhy(e)); }
-          renderPagos(); renderTri(); renderVerdicts();
-        });
-        right.appendChild(b);
-      }
-      li.append(d, right); ul.appendChild(li);
-    });
-    area.appendChild(ul);
-    const tot = list.reduce((s, x) => s + x.t.pay, 0), pend = list.reduce((s, x) => s + x.t.debt, 0);
-    const sum = el("div", "paysum");
-    [["Pendiente", "$" + pend, pend ? "bad" : ""], ["Pagado", "$" + (tot - pend), tot - pend ? "good" : ""], ["Total", "$" + tot, ""]].forEach(([l, val, c]) => {
-      const x = el("div"); x.append(el("div", "label", l), el("div", "big " + c, val)); sum.appendChild(x);
-    });
-    area.appendChild(sum);
-    copyButton(area, () => {
-      const L = ["Reto Fit Familia – Acumulado de todos los meses", "", "💰 Pagos:"];
-      list.forEach(({ p, t }) => L.push("• " + p.name + ": total $" + t.pay + (t.debt ? " (debe $" + t.debt + ")" : " ✅ al día")));
-      L.push("Total: $" + tot + (pend ? " (pendiente $" + pend + ")" : ""));
-      const st = people(null).map((p) => ({ p, s: totals(p).stars })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s);
-      if (st.length) L.push("", "⭐ Estrellas: " + st.map((x) => x.p.name + " " + x.s).join(", "));
-      return L.join("\n");
-    });
-  }
-  function renderPagos() {
-    $("pay-month").textContent = selLabel();
-    if (isAll()) { $("pay-area").textContent = ""; renderPagosAll(); return; }
-    const area = $("pay-area"); area.textContent = "";
-    const ps = people(selMonth);
-    const vs = ps.map((p) => ({ p, v: verdict(p.list, selMonth) }));
-    if (!vs.some((x) => x.v.kind !== "none")) { area.appendChild(el("div", "empty", "Sube los informes de " + MONTHS[Number(selMonth.slice(5)) - 1] + " para ver quién tiene que pagar.")); return; }
-    const payers = vs.filter((x) => x.v.pay > 0).sort((a, b) => b.v.pay - a.v.pay || a.p.name.localeCompare(b.p.name, "es"));
-    const stars = vs.filter((x) => x.v.kind === "star");
-    const free = vs.filter((x) => x.v.kind === "free");
-    const first = vs.filter((x) => x.v.kind === "first");
-    const none = vs.filter((x) => x.v.kind === "none");
-    if (!payers.length) area.appendChild(el("div", "empty", "Nadie tiene que pagar en " + MONTHS[Number(selMonth.slice(5)) - 1] + "."));
-    else {
-      const ul = el("ul", "verdicts");
-      payers.forEach(({ p, v }) => {
-        const paid = isPaid(p.name, selMonth);
-        const li = el("li");
-        const d = el("div");
-        d.append(el("b", null, p.name), el("span", "why", (v.kind === "worse" ? "Empeoró " : "Se mantuvo ") + fmtPct(v.v)));
-        const right = el("div", "payrow-right");
-        right.appendChild(el("span", "badge " + v.cls, "$" + v.pay));
-        if (canWrite()) {
-          const b = el("button", "paybtn" + (paid ? " on" : ""), paid ? "Pagado ✓" : "Marcar pagado"); b.type = "button";
-          b.setAttribute("aria-pressed", String(paid));
-          b.addEventListener("click", async () => {
-            b.disabled = true;
-            try {
-              await rpc("marcar_pago", { p_pin: pin, p_persona: p.name, p_mes: selMonth, p_monto: v.pay, p_pagado: !paid });
-              pagos.set(nameKey(p.name) + "|" + selMonth, { pagado: !paid, monto: v.pay });
-              showBanner("");
-            } catch (e) {
-              showBanner("No se pudo marcar el pago. " + sbWhy(e));
-            }
-            renderPagos(); renderTri();
-          });
-          right.appendChild(b);
-        } else right.appendChild(el("span", "paystate " + (paid ? "on" : "off"), paid ? "Pagado" : "Pendiente"));
-        li.append(d, right);
-        ul.appendChild(li);
-      });
-      area.appendChild(ul);
-      const tot = payers.reduce((s, x) => s + x.v.pay, 0);
-      const pend = payers.reduce((s, x) => s + (isPaid(x.p.name, selMonth) ? 0 : x.v.pay), 0);
-      const sum = el("div", "paysum");
-      [["Pendiente", "$" + pend, pend ? "bad" : ""], ["Pagado", "$" + (tot - pend), tot - pend ? "good" : ""], ["Total", "$" + tot, ""]].forEach(([l, val, c]) => {
-        const x = el("div"); x.append(el("div", "label", l), el("div", "big " + c, val)); sum.appendChild(x);
-      });
-      area.appendChild(sum);
-    }
-    const notes = [];
-    if (stars.length) notes.push("Estrella dorada: " + stars.map((x) => x.p.name).join(", ") + ".");
-    if (free.length) notes.push("No pagan por tener más de " + RULES.exentoSobre + " puntos: " + free.map((x) => x.p.name).join(", ") + ".");
-    if (first.length) notes.push("Primer informe, no pagan: " + first.map((x) => x.p.name).join(", ") + ".");
-    if (none.length) notes.push("Sin informe este mes: " + none.map((x) => x.p.name).join(", ") + ".");
-    notes.forEach((t) => area.appendChild(el("p", "hint paynote", t)));
-    copyButton(area, () => payText(selMonth, payers, stars, free));
-  }
-
-  const TOTAL = { key: "total", short: "Avance total" };
-  function renderRank() {
-    const c = $("chips"); c.textContent = "";
-    [TOTAL, ...METRICS].forEach((m) => {
-      const b = el("button", "chip", m.short); b.type = "button";
-      b.setAttribute("aria-pressed", String(m.key === rankMetric));
-      b.addEventListener("click", () => { rankMetric = m.key; renderRank(); });
-      c.appendChild(b);
-    });
-    const area = $("rank-area"); area.textContent = "";
-    const ps = people(upTo());
-    $("rank-hint").textContent = "Cambio desde el primer informe de cada persona hasta " + (isAll() ? "el último" : monthName(selMonth).toLowerCase()) + ".";
-    if (!ps.length) { area.appendChild(el("div", "empty", "Sube el primer informe para empezar.")); $("rank-note").textContent = ""; return; }
-    const isTotal = rankMetric === "total";
-    const m = METRICS.find((x) => x.key === rankMetric);
-    const score = (p) => isTotal ? totalProg(p.first, p.last) : pctProg(p.first, p.last, m);
-    const sorted = ps.slice().sort((a, b) => {
-      const aa = a.list.length > 1, bb = b.list.length > 1;
-      if (aa !== bb) return aa ? -1 : 1;
-      return score(b) - score(a) || a.name.localeCompare(b.name, "es");
-    });
-    const ul = el("ol", "rank");
-    let pos = 0;
-    sorted.forEach((p) => {
-      const has = p.list.length > 1; if (has) pos++;
-      const li = el("li"); li.tabIndex = 0;
-      li.appendChild(el("span", "pos", has ? String(pos) : "–"));
-      const who = el("div", "who");
-      who.appendChild(el("b", null, p.name));
-      const nm = p.list.length + (p.list.length === 1 ? " informe" : " informes");
-      who.appendChild(el("span", null, isTotal ? nm + " · desde " + monthName(p.first.mes).toLowerCase()
-        : fmt(p.first[m.key]) + " → " + fmt(p.last[m.key]) + (m.unit ? " " + m.unit : "") + " (" + deltaText(p.first, p.last, m) + ") · " + nm));
-      li.appendChild(who);
-      const v = score(p);
-      li.appendChild(el("span", "delta " + clsOf(v, p.list.length), has ? fmtPct(v) : "Falta 2.º informe"));
-      const pick = () => { selected = p.key; renderDetail(); $("t-det").scrollIntoView({ behavior: "smooth", block: "start" }); };
-      li.addEventListener("click", pick);
-      li.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
-      ul.appendChild(li);
-    });
-    area.appendChild(ul);
-    $("rank-note").textContent = isTotal ? "Promedio de las 6 medidas" : m.better === "up" ? "Subir es avance" : "Bajar es avance";
-  }
-
-  function renderDetail() {
-    const area = $("detail-area"); area.textContent = "";
-    const ps = people(upTo());
-    if (!ps.length) { area.appendChild(el("div", "empty", "Aquí verás la evolución de cada miembro de la familia.")); return; }
-    if (!selected || !ps.some((p) => p.key === selected)) selected = ps[0].key;
-    const p = ps.find((x) => x.key === selected);
-    const panel = el("div", "panel");
-    const sel = el("select"); sel.id = "pick-person"; sel.setAttribute("aria-label", "Persona");
-    ps.forEach((x) => { const o = el("option", null, x.name); o.value = x.key; o.selected = x.key === selected; sel.appendChild(o); });
-    sel.addEventListener("change", () => { selected = sel.value; renderDetail(); });
-    panel.appendChild(sel);
-    const n = p.list.length;
-    panel.appendChild(el("div", "label", n > 1 ? "Último informe · " + monthName(p.last.mes) + " · cambio desde " + monthName(p.first.mes) : "Primer informe · " + monthName(p.last.mes)));
-    if (n > 1) {
-      const t = el("div", "total");
-      const v = totalProg(p.first, p.last);
-      t.append(el("span", "label", "Avance total"), el("span", "big " + clsOf(v, n), fmtPct(v)));
-      panel.appendChild(t);
-    }
-    const grid = el("div", "metrics");
-    METRICS.forEach((m) => {
-      const c = el("div", "metric");
-      c.appendChild(el("span", "label", m.short));
-      const now = el("span", "now num", fmt(p.last[m.key]));
-      if (m.unit) now.appendChild(el("small", null, m.unit));
-      c.appendChild(now);
-      const v = pctProg(p.first, p.last, m);
-      c.appendChild(el("span", "chg " + clsOf(v, n), n < 2 ? "Punto de partida" : deltaText(p.first, p.last, m) + " · " + fmtPct(pctChange(p.first, p.last, m))));
-      grid.appendChild(c);
-    });
-    panel.appendChild(grid);
-    if (n > 1) {
-      const chips = el("div", "chips"); chips.setAttribute("role", "group"); chips.setAttribute("aria-label", "Medida del gráfico");
-      METRICS.forEach((m) => {
-        const b = el("button", "chip", m.short); b.type = "button";
-        b.setAttribute("aria-pressed", String(m.key === chartMetric));
-        b.addEventListener("click", () => { chartMetric = m.key; renderDetail(); });
-        chips.appendChild(b);
-      });
-      panel.appendChild(chips);
-      const box = el("div", "chart-box");
-      box.appendChild(chart(p, METRICS.find((x) => x.key === chartMetric)));
-      panel.appendChild(box);
-    }
-    const tw = el("div", "table-wrap");
-    const t = el("table", "hist");
-    const hr = el("tr");
-    ["Mes", ...METRICS.map((m) => m.short), ""].forEach((h) => hr.appendChild(el("th", null, h)));
-    const thead = el("thead"); thead.appendChild(hr); t.appendChild(thead);
-    const tb = el("tbody");
-    p.list.slice().reverse().forEach((r) => {
-      const tr = el("tr");
-      tr.appendChild(el("td", null, monthShort(r.mes)));
-      METRICS.forEach((m) => tr.appendChild(el("td", "num", fmt(r[m.key]))));
-      const td = el("td");
-      if (!canWrite()) { /* solo lectura */ }
-      else if (pendingDelete === r.id) {
-        const w = el("span", "confirm");
-        const y = el("button", "yes", "Borrar"); y.type = "button";
-        const no = el("button", "no", "No"); no.type = "button";
-        y.addEventListener("click", async () => {
-          y.disabled = true; no.disabled = true; y.textContent = "Borrando…";
-          try {
-            await rpc("borrar_informe", { p_pin: pin, p_persona: r.persona, p_mes: r.mes });
-            await loadData(); showBanner("");
-          } catch (e) {
-            showBanner("No se pudo borrar. " + sbWhy(e));
-          }
-          pendingDelete = null; renderAll();
-        });
-        no.addEventListener("click", () => { pendingDelete = null; renderDetail(); });
-        w.append(y, no); td.appendChild(w);
-      } else {
-        const b = el("button", "del", "Borrar"); b.type = "button";
-        b.setAttribute("aria-label", "Borrar informe de " + monthName(r.mes));
-        b.addEventListener("click", () => { pendingDelete = r.id; renderDetail(); });
-        td.appendChild(b);
-      }
-      tr.appendChild(td);
-      tb.appendChild(tr);
-    });
-    t.appendChild(tb); tw.appendChild(t); panel.appendChild(tw);
-    area.appendChild(panel);
   }
 
   function chart(p, m) {
@@ -900,11 +933,10 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
   }
   function renderAll() {
     renderMonthSel();
-    renderVerdicts();
-    renderPagos();
-    renderTri();
+    renderSummary();
+    renderFamily();
     renderRank();
-    renderDetail();
+    renderTri();
     renderNames();
     refreshCardMonths();
   }
@@ -1051,7 +1083,7 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     if (skipped > 0) parts.push(skipped === 1 ? "1 ya estaba guardado y no se repitió." : skipped + " ya estaban guardados y no se repitieron.");
     if (dups.length) parts.push(dups.length === 1 ? "1 tarjeta no se subió porque ya existe (en rojo); puedes quitarla." : dups.length + " tarjetas no se subieron porque ya existen (en rojo); puedes quitarlas.");
     status("save-status", parts.join(" ") || "No había nada nuevo para guardar.", saved && !dups.length ? "ok" : "warn");
-    if (saved && !dups.length) $("t-rules").scrollIntoView({ behavior: "smooth", block: "start" });
+    if (saved && !dups.length) $("t-sum").closest("section").scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   // ================= Lectura de informes (OCR) =================
