@@ -1,8 +1,7 @@
 -- =====================================================================
 -- Reto Fit Familia · configuración de Supabase
--- Cómo usarlo:
---   1. Cambia CAMBIA-ESTE-PIN (línea marcada abajo) por el PIN de la familia.
---   2. En Supabase: SQL Editor → New query → pega todo → Run.
+-- Cómo usarlo: en Supabase, SQL Editor → New query → pega todo → Run.
+-- Acceso directo (sin PIN). No se permiten informes duplicados.
 -- Se puede volver a ejecutar sin perder datos.
 -- =====================================================================
 
@@ -48,8 +47,8 @@ create table if not exists public.reto_config (
 );
 
 -- ---------- Seguridad ----------
--- Todos pueden VER informes y pagos. Nadie escribe directo:
--- solo a través de las funciones de abajo, que piden el PIN.
+-- Todos pueden VER informes y pagos. Nadie escribe directo en las tablas:
+-- solo a través de las funciones de abajo, que validan los datos y evitan duplicados.
 alter table public.informes    enable row level security;
 alter table public.pagos       enable row level security;
 alter table public.reto_config enable row level security;
@@ -73,8 +72,7 @@ $$;
 
 create or replace function public.reto_pin_ok(p_pin text) returns boolean
 language sql stable security definer set search_path = public, extensions as $$
-  select exists (select 1 from public.reto_config c
-                 where c.id = 1 and c.pin_hash = extensions.crypt(coalesce(p_pin, ''), c.pin_hash));
+  select true;   -- acceso directo: no se pide PIN
 $$;
 
 create or replace function public.verificar_pin(p_pin text) returns boolean
@@ -87,14 +85,24 @@ language plpgsql security definer set search_path = public, extensions as $$
 declare
   r jsonb;
   n integer := 0;
+  k integer;
 begin
-  if not public.reto_pin_ok(p_pin) then
-    raise exception 'PIN incorrecto';
-  end if;
   if jsonb_typeof(p_informes) <> 'array' then
     raise exception 'Formato inválido';
   end if;
   for r in select * from jsonb_array_elements(p_informes) loop
+    -- Informe idéntico ya guardado (aunque sea con otro nombre): no se repite
+    if exists (
+      select 1 from public.informes i
+      where not i.oculto
+        and i.fecha = (r->>'fecha')::date
+        and i.peso = (r->>'peso')::numeric
+        and i.masa_grasa = (r->>'masaGrasa')::numeric
+        and i.masa_muscular = (r->>'masaMuscular')::numeric
+        and i.puntuacion = (r->>'puntuacion')::numeric
+    ) then
+      continue;
+    end if;
     insert into public.informes
       (persona, persona_key, fecha, mes, puntuacion, peso, grasa_pct, masa_grasa, masa_muscular, imc, altura, genero, edad)
     values (
@@ -112,16 +120,16 @@ begin
       case when r->>'genero' in ('Hombre', 'Mujer') then r->>'genero' end,
       nullif(r->>'edad', '')::integer
     )
+    -- Un informe por persona y mes: solo reemplaza uno que había sido borrado
     on conflict (persona_key, mes) do update set
       persona = excluded.persona, fecha = excluded.fecha,
       puntuacion = excluded.puntuacion, peso = excluded.peso, grasa_pct = excluded.grasa_pct,
       masa_grasa = excluded.masa_grasa, masa_muscular = excluded.masa_muscular, imc = excluded.imc,
-      altura = coalesce(excluded.altura, informes.altura),
-      genero = coalesce(excluded.genero, informes.genero),
-      edad = coalesce(excluded.edad, informes.edad),
-      oculto = false,
-      creado = now();
-    n := n + 1;
+      altura = excluded.altura, genero = excluded.genero, edad = excluded.edad,
+      oculto = false, creado = now()
+    where informes.oculto;
+    get diagnostics k = row_count;
+    n := n + k;
   end loop;
   return n;
 end;
@@ -162,11 +170,6 @@ grant execute on function public.verificar_pin(text) to anon, authenticated;
 grant execute on function public.guardar_informes(text, jsonb) to anon, authenticated;
 grant execute on function public.borrar_informe(text, text, text) to anon, authenticated;
 grant execute on function public.marcar_pago(text, text, text, integer, boolean) to anon, authenticated;
-
--- ---------- PIN de la familia ----------
-insert into public.reto_config (id, pin_hash)
-values (1, extensions.crypt('CAMBIA-ESTE-PIN', extensions.gen_salt('bf')))   -- <<< CAMBIA EL PIN AQUÍ
-on conflict (id) do update set pin_hash = excluded.pin_hash;
 
 -- ---------- Informes que ya estaban en la app ----------
 insert into public.informes

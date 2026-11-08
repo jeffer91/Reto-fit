@@ -217,10 +217,6 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
       <input id="file-in" type="file" accept="application/pdf,image/*" multiple class="sr-only">
       <div id="ocr-status" class="status info" hidden></div>
       <div id="cards" class="cards"></div>
-      <div id="pin-row" class="field" hidden>
-        <label for="pin-inline">PIN de la familia (solo la primera vez en este teléfono)</label>
-        <input id="pin-inline" type="password" autocomplete="off" inputmode="numeric">
-      </div>
       <div id="save-bar" class="row-btns" hidden>
         <button type="button" class="primary" id="btn-save-all">Guardar todos</button>
         <button type="button" class="ghost" id="btn-clear">Descartar todos</button>
@@ -295,24 +291,14 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
         </div>
         <button type="button" class="ghost" id="btn-sb-off" hidden>Cambiar proyecto</button>
       </div>
-      <div class="field">
-        <b>PIN de la familia</b>
-        <p class="hint" id="pin-state"></p>
-        <div id="pin-form" class="field">
-          <label for="pin-set" class="sr-only">PIN</label>
-          <input id="pin-set" type="password" autocomplete="off" inputmode="numeric" placeholder="PIN">
-          <button type="button" class="primary" id="btn-pin">Guardar PIN en este teléfono</button>
-        </div>
-        <button type="button" class="ghost" id="btn-pin-off" hidden>Quitar PIN de este teléfono</button>
-      </div>
       <div id="set-msg" class="status" hidden></div>
-      <p class="hint">Versión 2026-11-08b · Supabase</p>
+      <p class="hint">Versión 2026-11-08c · Supabase</p>
     </div>
   </section>
 </div>
 <datalist id="names-dl"></datalist>
 <script>
-  // Conexión con Supabase (proyecto "Reto Fit"). La clave publishable es pública: solo permite ver; guardar exige el PIN.
+  // Conexión con Supabase (proyecto "Reto Fit"). La clave publishable es pública por diseño.
   window.RETOFIT_CONFIG = window.RETOFIT_CONFIG || {
     supabaseUrl: "https://omqmynobelpqzbzipxjz.supabase.co",
     supabaseKey: "sb_publishable_vtrnzmfiZaSFvjtLNLkeZA_UlowI1CZ"
@@ -405,8 +391,8 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     return null;
   }
   let cfg = getCfg();
-  let pin = lsGet(PIN_KEY);
-  const canWrite = () => fuente === "supabase" && !!pin;
+  const pin = "";   // acceso directo: no se pide PIN
+  const canWrite = () => fuente === "supabase";
   async function sb(path, opts, conf) {
     const c = conf || cfg;
     const h = { apikey: c.key, Accept: "application/json", "Content-Type": "application/json" };
@@ -614,7 +600,6 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
               pagos.set(nameKey(p.name) + "|" + selMonth, { pagado: !paid, monto: v.pay });
               showBanner("");
             } catch (e) {
-              if (isPinErr(e)) { pin = null; lsSet(PIN_KEY, null); renderSettings(); }
               showBanner("No se pudo marcar el pago. " + sbWhy(e));
             }
             renderPagos(); renderTri();
@@ -765,7 +750,6 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
             await rpc("borrar_informe", { p_pin: pin, p_persona: r.persona, p_mes: r.mes });
             await loadData(); showBanner("");
           } catch (e) {
-            if (isPinErr(e)) { pin = null; lsSet(PIN_KEY, null); renderSettings(); }
             showBanner("No se pudo borrar. " + sbWhy(e));
           }
           pendingDelete = null; renderAll();
@@ -938,33 +922,46 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     if (!out.length) return;
     if (fuente !== "supabase") { status("save-status", "Primero conecta Supabase en Ajustes (al final de la página).", "warn"); return; }
     const btn = $("btn-save-all");
-    if (!pin) {
-      const p = $("pin-inline").value.trim();
-      if (!p) { $("pin-row").hidden = false; $("pin-inline").focus(); status("save-status", "Escribe el PIN de la familia para guardar.", "warn"); return; }
-      btn.disabled = true;
-      try {
-        if (!(await rpc("verificar_pin", { p_pin: p }))) { status("save-status", "El PIN no es correcto.", "warn"); return; }
-      } catch (e) { status("save-status", sbWhy(e), "warn"); return; }
-      finally { btn.disabled = false; }
-      pin = p; lsSet(PIN_KEY, p); $("pin-inline").value = ""; $("pin-row").hidden = true; renderSettings();
-    }
-    const n = out.length;
     btn.disabled = true;
-    status("save-status", "Guardando en Supabase…", "info");
-    try {
-      await rpc("guardar_informes", { p_pin: pin, p_informes: out.map((o) => strip(o.row)) });
-      await loadData();
-    } catch (e) {
-      if (isPinErr(e)) { pin = null; lsSet(PIN_KEY, null); $("pin-row").hidden = false; renderSettings(); }
-      status("save-status", "No se guardó. " + sbWhy(e), "warn");
-      return;
-    } finally { btn.disabled = false; }
-    selMonth = out.map((o) => o.row.mes).sort().pop();
-    out.forEach((o) => removeCard(o.card.id));
-    status("ocr-status", "");
+    status("save-status", "Revisando que no estén repetidos…", "info");
+    // Se trae lo último guardado (otro teléfono pudo subir algo hace un momento)
+    try { await loadData(); } catch (e) { btn.disabled = false; status("save-status", "No se guardó. " + sbWhy(e), "warn"); return; }
+    const same = (a, b) => a.fecha === b.fecha && ["peso", "masaGrasa", "masaMuscular", "puntuacion"].every((k) => Math.abs(a[k] - b[k]) < 1e-9);
+    const toSave = [], dups = [];
+    out.forEach((o) => {
+      const fld = o.card.node.querySelector("[data-f=persona]").closest(".field");
+      const twin = rows.find((r) => same(r, o.row));
+      const month = rows.find((r) => rowKey(r) === rowKey(o.row));
+      if (twin) { setMsg(fld, "Este informe ya está guardado" + (nameKey(twin.persona) !== nameKey(o.row.persona) ? " como " + twin.persona : "") + ". No se sube de nuevo.", "err"); dups.push(o); }
+      else if (month) { setMsg(fld, month.persona + " ya tiene informe de " + monthName(o.row.mes).toLowerCase() + ". Para cambiarlo, bórralo primero en Detalle por persona.", "err"); dups.push(o); }
+      else toSave.push(o);
+    });
+    let saved = 0;
+    if (toSave.length) {
+      status("save-status", "Guardando en Supabase…", "info");
+      try {
+        saved = Number(await rpc("guardar_informes", { p_pin: pin, p_informes: toSave.map((o) => strip(o.row)) })) || 0;
+        await loadData();
+      } catch (e) {
+        btn.disabled = false; renderAll();
+        status("save-status", "No se guardó. " + sbWhy(e), "warn");
+        return;
+      }
+    }
+    btn.disabled = false;
+    if (toSave.length) {
+      selMonth = toSave.map((o) => o.row.mes).sort().pop();
+      toSave.forEach((o) => removeCard(o.card.id));
+      if (!dups.length) status("ocr-status", "");
+    }
     renderAll();
-    status("save-status", (n === 1 ? "1 informe guardado" : n + " informes guardados") + " en Supabase. Toda la familia ya los puede ver.", "ok");
-    $("t-rules").scrollIntoView({ behavior: "smooth", block: "start" });
+    const skipped = toSave.length - saved;
+    const parts = [];
+    if (saved) parts.push((saved === 1 ? "1 informe guardado" : saved + " informes guardados") + ". Toda la familia ya los puede ver.");
+    if (skipped > 0) parts.push(skipped === 1 ? "1 ya estaba guardado y no se repitió." : skipped + " ya estaban guardados y no se repitieron.");
+    if (dups.length) parts.push(dups.length === 1 ? "1 tarjeta no se subió porque ya existe (en rojo); puedes quitarla." : dups.length + " tarjetas no se subieron porque ya existen (en rojo); puedes quitarlas.");
+    status("save-status", parts.join(" ") || "No había nada nuevo para guardar.", saved && !dups.length ? "ok" : "warn");
+    if (saved && !dups.length) $("t-rules").scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   // ================= Lectura de informes (OCR) =================
@@ -1228,10 +1225,6 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     } else { st.className = "status info"; st.textContent = "Sin conectar. Se muestran los datos guardados en el repositorio y no se puede guardar."; }
     $("sb-form").hidden = !!cfg;
     $("btn-sb-off").hidden = !cfg || cfg.fixed;
-    $("pin-state").textContent = pin ? "Este teléfono puede guardar informes y marcar pagos." : "Sin PIN este teléfono solo puede ver. El PIN es el que pusiste en el archivo supabase.sql.";
-    $("pin-form").hidden = !!pin;
-    $("btn-pin-off").hidden = !pin;
-    $("pin-row").hidden = true;
   }
   const setMsg2 = (t, k) => status("set-msg", t, k);
   function keyProblem(key) {
@@ -1254,7 +1247,7 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
       lsSet(CFG_KEY, JSON.stringify({ url, key }));
       cfg = conf; await loadData(); showBanner("");
       renderAll(); renderSettings();
-      setMsg2("Conectado. Ahora guarda el PIN de la familia para poder subir informes.", "ok");
+      setMsg2("Conectado.", "ok");
     } catch (e) { setMsg2(sbWhy(e), "warn"); }
     finally { $("btn-sb").disabled = false; }
   });
@@ -1263,19 +1256,6 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     try { await loadData(); } catch (_) {}
     renderAll(); renderSettings(); setMsg2("Proyecto desconectado de este teléfono.", "info");
   });
-  $("btn-pin").addEventListener("click", async () => {
-    const p = $("pin-set").value.trim();
-    if (!p) { setMsg2("Escribe el PIN.", "warn"); return; }
-    if (fuente !== "supabase") { setMsg2("Primero conecta Supabase.", "warn"); return; }
-    $("btn-pin").disabled = true;
-    try {
-      if (!(await rpc("verificar_pin", { p_pin: p }))) { setMsg2("El PIN no es correcto.", "warn"); return; }
-      pin = p; lsSet(PIN_KEY, p); $("pin-set").value = "";
-      renderSettings(); renderAll(); setMsg2("PIN guardado. Este teléfono ya puede guardar informes.", "ok");
-    } catch (e) { setMsg2(sbWhy(e), "warn"); }
-    finally { $("btn-pin").disabled = false; }
-  });
-  $("btn-pin-off").addEventListener("click", () => { pin = null; lsSet(PIN_KEY, null); renderSettings(); renderAll(); setMsg2("PIN quitado de este teléfono.", "info"); });
 
   // ================= Inicio =================
   Object.assign(debug, { parseReport, checks, nameFromFile });

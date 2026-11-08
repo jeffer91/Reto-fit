@@ -12,9 +12,9 @@ Los datos se guardan en **Supabase**.
 2. Abre [`supabase.sql`](supabase.sql), cambia `CAMBIA-ESTE-PIN` por el PIN de la familia,
    y ejecútalo en **SQL Editor → New query → Run**. Crea las tablas, la seguridad y carga los informes que ya había.
 3. La URL y la clave publishable del proyecto están en `index.html` (`RETOFIT_CONFIG`).
-4. Guarda el PIN en los teléfonos que van a subir informes.
 
-Cualquiera con el link puede ver los datos; solo quien tiene el PIN puede guardar, borrar o marcar pagos.
+
+Acceso directo: cualquiera con el link puede subir informes y marcar pagos. No se permiten duplicados: un informe por persona y mes, y un mismo informe no se guarda dos veces.
 
 ## Cómo se usa
 
