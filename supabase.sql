@@ -179,3 +179,93 @@ values
   ('Jefferson', 'jefferson', '2026-11-08', '2026-11', 61, 90.75, 35.3, 32.03, 54.81, 30.3, 173, 'Hombre', 35),
   ('Kelly',     'kelly',     '2026-10-04', '2026-10', 69, 52.75, 33.3, 17.57, 32.81, 21.7, 156, 'Mujer', 26)
 on conflict (persona_key, mes) do nothing;
+
+-- =====================================================================
+-- Ponderación del avance: datos extra del informe y guardado que completa sin duplicar
+-- =====================================================================
+alter table public.informes add column if not exists grasa_visceral numeric;
+alter table public.informes add column if not exists meta_grasa numeric;
+alter table public.informes add column if not exists meta_musculo numeric;
+alter table public.informes add column if not exists grasa_min numeric;
+alter table public.informes add column if not exists grasa_max numeric;
+alter table public.informes add column if not exists musculo_min numeric;
+alter table public.informes add column if not exists musculo_max numeric;
+
+-- Guarda informes nuevos y completa con datos extra los que ya estaban (sin duplicar).
+-- Devuelve {"nuevos": n, "completados": c}
+create or replace function public.guardar_informes2(p_informes jsonb) returns jsonb
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  r jsonb;
+  n integer := 0;
+  c integer := 0;
+  k integer;
+  tid bigint;
+begin
+  if jsonb_typeof(p_informes) <> 'array' then
+    raise exception 'Formato inválido';
+  end if;
+  for r in select * from jsonb_array_elements(p_informes) loop
+    select i.id into tid from public.informes i
+     where not i.oculto
+       and i.fecha = (r->>'fecha')::date
+       and i.peso = (r->>'peso')::numeric
+       and i.masa_grasa = (r->>'masaGrasa')::numeric
+       and i.masa_muscular = (r->>'masaMuscular')::numeric
+       and i.puntuacion = (r->>'puntuacion')::numeric
+     limit 1;
+    if tid is not null then
+      update public.informes set
+        grasa_visceral = coalesce(grasa_visceral, nullif(r->>'visceral', '')::numeric),
+        meta_grasa     = coalesce(meta_grasa,     nullif(r->>'metaGrasa', '')::numeric),
+        meta_musculo   = coalesce(meta_musculo,   nullif(r->>'metaMusculo', '')::numeric),
+        grasa_min      = coalesce(grasa_min,      nullif(r->>'grasaMin', '')::numeric),
+        grasa_max      = coalesce(grasa_max,      nullif(r->>'grasaMax', '')::numeric),
+        musculo_min    = coalesce(musculo_min,    nullif(r->>'musculoMin', '')::numeric),
+        musculo_max    = coalesce(musculo_max,    nullif(r->>'musculoMax', '')::numeric),
+        altura         = coalesce(altura,         nullif(r->>'altura', '')::numeric),
+        genero         = coalesce(genero, case when r->>'genero' in ('Hombre', 'Mujer') then r->>'genero' end),
+        edad           = coalesce(edad,           nullif(r->>'edad', '')::integer)
+      where id = tid
+        and ((grasa_visceral is null and nullif(r->>'visceral', '') is not null)
+          or (meta_grasa is null and nullif(r->>'metaGrasa', '') is not null)
+          or (meta_musculo is null and nullif(r->>'metaMusculo', '') is not null)
+          or (grasa_max is null and nullif(r->>'grasaMax', '') is not null)
+          or (musculo_max is null and nullif(r->>'musculoMax', '') is not null));
+      get diagnostics k = row_count;
+      c := c + k;
+      continue;
+    end if;
+    insert into public.informes
+      (persona, persona_key, fecha, mes, puntuacion, peso, grasa_pct, masa_grasa, masa_muscular, imc, altura, genero, edad,
+       grasa_visceral, meta_grasa, meta_musculo, grasa_min, grasa_max, musculo_min, musculo_max)
+    values (
+      btrim(regexp_replace(r->>'persona', '\s+', ' ', 'g')),
+      public.reto_key(r->>'persona'),
+      (r->>'fecha')::date,
+      to_char((r->>'fecha')::date, 'YYYY-MM'),
+      (r->>'puntuacion')::numeric, (r->>'peso')::numeric, (r->>'grasaPct')::numeric,
+      (r->>'masaGrasa')::numeric, (r->>'masaMuscular')::numeric, (r->>'imc')::numeric,
+      nullif(r->>'altura', '')::numeric,
+      case when r->>'genero' in ('Hombre', 'Mujer') then r->>'genero' end,
+      nullif(r->>'edad', '')::integer,
+      nullif(r->>'visceral', '')::numeric, nullif(r->>'metaGrasa', '')::numeric, nullif(r->>'metaMusculo', '')::numeric,
+      nullif(r->>'grasaMin', '')::numeric, nullif(r->>'grasaMax', '')::numeric,
+      nullif(r->>'musculoMin', '')::numeric, nullif(r->>'musculoMax', '')::numeric
+    )
+    on conflict (persona_key, mes) do update set
+      persona = excluded.persona, fecha = excluded.fecha,
+      puntuacion = excluded.puntuacion, peso = excluded.peso, grasa_pct = excluded.grasa_pct,
+      masa_grasa = excluded.masa_grasa, masa_muscular = excluded.masa_muscular, imc = excluded.imc,
+      altura = excluded.altura, genero = excluded.genero, edad = excluded.edad,
+      grasa_visceral = excluded.grasa_visceral, meta_grasa = excluded.meta_grasa, meta_musculo = excluded.meta_musculo,
+      grasa_min = excluded.grasa_min, grasa_max = excluded.grasa_max,
+      musculo_min = excluded.musculo_min, musculo_max = excluded.musculo_max,
+      oculto = false, creado = now()
+    where informes.oculto;
+    get diagnostics k = row_count;
+    n := n + k;
+  end loop;
+  return jsonb_build_object('nuevos', n, 'completados', c);
+end;
+$$;

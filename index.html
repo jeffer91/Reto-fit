@@ -157,6 +157,7 @@ th.sel { color: var(--accent); }
 .big.good { color: var(--good); } .big.bad { color: var(--bad); } .big.flat { color: var(--muted); }
 .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .metric { background: var(--surface); padding: 10px 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.metrics .metric:last-child:nth-child(3n+1) { grid-column: 1 / -1; }
 .metric .now { font-size: 1.6rem; font-weight: 600; line-height: 1.05; }
 .metric .now small { font-family: var(--font-body); font-size: .72rem; color: var(--muted); font-weight: 500; margin-left: 2px; }
 .metric .chg { font-size: .78rem; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -269,9 +270,27 @@ a.big-btn { text-decoration: none; }
 .pp-place b { color: var(--fg); }
 .pp-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .hist-block { display: flex; flex-direction: column; gap: 8px; }
+.result { border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; background: var(--bg); }
+.result.up { background: var(--good-soft); } .result.down { background: var(--bad-soft); } .result.same { background: var(--warn-soft); }
+.result-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.result-word { font: 700 1.8rem var(--font-display); line-height: 1; }
+.result-pct { font: 700 1.8rem var(--font-display); line-height: 1; font-variant-numeric: tabular-nums; }
+.result.up .result-word, .result.up .result-pct { color: var(--good); }
+.result.down .result-word, .result.down .result-pct { color: var(--bad); }
+.result.same .result-word, .result.same .result-pct { color: var(--warn); }
+.result-sub { color: var(--muted); font-size: .85rem; }
+.reasons { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.reasons li { display: flex; gap: 8px; align-items: center; font-size: .92rem; }
+.reasons .ico { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: .8rem; }
+.reasons .ok .ico { background: var(--good); color: var(--surface); }
+.reasons .warn .ico { background: var(--bad); color: var(--surface); }
+.reasons .info .ico { background: var(--line); color: var(--muted); }
+.reasons .info { color: var(--muted); }
 @media (max-width: 480px) { .tile .big { font-size: 1.45rem; } .p-head { gap: 10px; padding: 12px; } }
 @media (max-width: 480px) {
   .metrics, .grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .metrics .metric:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .metrics .metric:last-child:nth-child(3n+1):nth-child(even) { grid-column: auto; }
   .rules { grid-template-columns: minmax(0, 1fr); }
   h1 { font-size: 1.9rem; }
 }
@@ -351,7 +370,8 @@ a.big-btn { text-decoration: none; }
           <li><span class="badge b-worse">$5</span>Empeora sus medidas: paga $5</li>
           <li><span class="badge b-free">$0</span>Puntuación corporal mayor a 75: no paga</li>
         </ul>
-        <p class="hint">Se compara el informe del mes con el informe anterior de cada persona, usando el promedio del % de cambio de las 6 medidas. Mejora si avanza más de 0,5 %, empeora si retrocede más de 0,5 %, y se mantiene entre esos dos. Un informe por persona y mes; no se aceptan duplicados.</p>
+        <p class="hint">Cada mes se compara tu informe con el anterior. Se mira lo que importa para tu salud: bajar grasa, no perder músculo, tu puntuación corporal y tu grasa visceral, según la meta de tu propio informe. El peso solo no cuenta: bajar de peso perdiendo músculo no es mejorar.</p>
+        <p class="hint"><b>Mejoró</b>: más de +10 %. <b>Se mantuvo</b>: entre −10 % y +10 %. <b>Empeoró</b>: menos de −10 %. Un informe por persona y mes; no se aceptan duplicados.</p>
       </div>
     </details>
     <details class="fold">
@@ -378,7 +398,7 @@ a.big-btn { text-decoration: none; }
         <button type="button" class="ghost" id="btn-sb-off" hidden>Cambiar proyecto</button>
       </div>
       <div id="set-msg" class="status" hidden></div>
-      <p class="hint">Versión 2026-11-08i · Supabase</p>
+      <p class="hint">Versión 2026-11-08j · Supabase</p>
 </div>
     </details>
     </div>
@@ -405,7 +425,8 @@ a.big-btn { text-decoration: none; }
     { key: "masaMuscular", name: "Masa muscular",       short: "Músculo",    unit: "kg",  better: "up",   min: 5,   max: 150 },
     { key: "imc",          name: "IMC",                 short: "IMC",        unit: "",    better: "down", min: 8,   max: 80 },
   ];
-  const RULES = { margen: 0.5, exentoSobre: 75, pagoMantiene: 1, pagoEmpeora: 5 };
+  // margen: menos de 10 % de cambio = "se mantuvo" (absorbe el error de la báscula)
+  const RULES = { margen: 10, exentoSobre: 75, pagoMantiene: 1, pagoEmpeora: 5 };
   const MONTHS = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
   const MON3 = { ene:1, feb:2, mar:3, abr:4, may:5, jun:6, jul:7, ago:8, sep:9, set:9, oct:10, nov:11, dic:12, jan:1, apr:4, aug:8, dec:12 };
 
@@ -446,12 +467,16 @@ a.big-btn { text-decoration: none; }
     if (typeof d.altura === "number" && d.altura >= 80 && d.altura <= 250) o.altura = d.altura;
     if (d.genero === "Hombre" || d.genero === "Mujer") o.genero = d.genero;
     if (typeof d.edad === "number" && d.edad >= 1 && d.edad <= 120) o.edad = d.edad;
+    // Datos extra del informe para el cálculo del avance (opcionales)
+    EXTRA.forEach((k) => { if (typeof d[k] === "number" && isFinite(d[k])) o[k] = d[k]; });
     return o;
   }
+  const EXTRA = ["visceral", "metaGrasa", "metaMusculo", "grasaMin", "grasaMax", "musculoMin", "musculoMax"];
+  const hasExtra = (r) => EXTRA.some((k) => typeof r[k] === "number");
   function strip(r) {
     const o = { persona: r.persona, fecha: r.fecha };
     METRICS.forEach((m) => { o[m.key] = r[m.key]; });
-    ["altura", "genero", "edad"].forEach((k) => { if (r[k] != null) o[k] = r[k]; });
+    ["altura", "genero", "edad", ...EXTRA].forEach((k) => { if (r[k] != null) o[k] = r[k]; });
     return o;
   }
   const rowKey = (r) => nameKey(r.persona) + "|" + r.mes;
@@ -466,6 +491,8 @@ a.big-btn { text-decoration: none; }
     puntuacion: Number(d.puntuacion), peso: Number(d.peso), grasaPct: Number(d.grasa_pct),
     masaGrasa: Number(d.masa_grasa), masaMuscular: Number(d.masa_muscular), imc: Number(d.imc),
     altura: numOrU(d.altura), genero: d.genero || undefined, edad: numOrU(d.edad),
+    visceral: numOrU(d.grasa_visceral), metaGrasa: numOrU(d.meta_grasa), metaMusculo: numOrU(d.meta_musculo),
+    grasaMin: numOrU(d.grasa_min), grasaMax: numOrU(d.grasa_max), musculoMin: numOrU(d.musculo_min), musculoMax: numOrU(d.musculo_max),
   });
 
   // ---- Conexión ----
@@ -513,7 +540,7 @@ a.big-btn { text-decoration: none; }
       return;
     }
     const [inf, pg] = await Promise.all([
-      sb("/rest/v1/informes?select=persona,fecha,puntuacion,peso,grasa_pct,masa_grasa,masa_muscular,imc,altura,genero,edad&order=fecha.asc&limit=10000"),
+      sb("/rest/v1/informes?select=persona,fecha,puntuacion,peso,grasa_pct,masa_grasa,masa_muscular,imc,altura,genero,edad,grasa_visceral,meta_grasa,meta_musculo,grasa_min,grasa_max,musculo_min,musculo_max&order=fecha.asc&limit=10000"),
       sb("/rest/v1/pagos?select=persona,mes,monto,pagado&limit=10000"),
     ]);
     setRows((inf || []).map(fromDb).map((d, i) => cleanObj(d, "r" + i)).filter(Boolean));
@@ -539,8 +566,50 @@ a.big-btn { text-decoration: none; }
   }
   const pctChange = (a, b, m) => a[m.key] ? (b[m.key] - a[m.key]) / a[m.key] * 100 : 0;
   const pctProg = (a, b, m) => m.better === "up" ? pctChange(a, b, m) : -pctChange(a, b, m);
-  // Avance total entre dos informes = promedio del avance en % de las 6 medidas
-  const totalProg = (a, b) => METRICS.reduce((s, m) => s + pctProg(a, b, m), 0) / METRICS.length;
+  // ===== Cálculo del avance (por dentro; la familia solo ve mejoró / se mantuvo / empeoró y el %) =====
+  // Cada factor va de −10 a +10 y se pondera: grasa 35 %, músculo 30 %, puntuación 20 %, grasa visceral 15 %.
+  // El peso no cuenta por sí solo: perder músculo no es mejorar, y cada uno se mide contra su propia meta.
+  const clamp10 = (x) => Math.max(-10, Math.min(10, x));
+  function fatExcess(r) {
+    if (typeof r.metaGrasa === "number") return r.metaGrasa < -0.05;            // el informe dice que debe bajar grasa
+    if (typeof r.grasaMax === "number") return r.masaGrasa > r.grasaMax;          // por encima de su rango sano
+    return r.grasaPct > (r.genero === "Mujer" ? 28 : r.genero === "Hombre" ? 20 : 25);
+  }
+  function evaluate(a, b) {
+    const peso = a.peso || b.peso;
+    const dF = b.masaGrasa - a.masaGrasa, dM = b.masaMuscular - a.masaMuscular, dP = b.puntuacion - a.puntuacion;
+    // Cambios menores a 0,2 kg no cuentan: están dentro del error de la báscula
+    const nz = (d) => Math.abs(d) < 0.2 ? 0 : d;
+    const hasV = typeof a.visceral === "number" && typeof b.visceral === "number";
+    const dV = hasV ? b.visceral - a.visceral : 0;
+    // Grasa: perder el 1 % del peso en grasa = +10. Si ya está en su rango sano, solo resta si sube.
+    let sF = -nz(dF) / peso * 1000;
+    if (!fatExcess(a)) sF = Math.min(0, sF);
+    // Músculo: ganar el 1 % del peso en músculo = +10; perder músculo siempre resta.
+    const sM = nz(dM) / peso * 1000;
+    const f = [ { w: 35, s: clamp10(sF) }, { w: 30, s: clamp10(sM) }, { w: 20, s: clamp10(dP * 2.5) } ];
+    if (hasV) f.push({ w: 15, s: clamp10(-dV * 5) });          // bajar 2 niveles de visceral = +10
+    const sw = f.reduce((x, y) => x + y.w, 0);
+    const pct = f.reduce((x, y) => x + y.w * y.s, 0) / sw * 10;
+    return { pct, dF, dM, dP, dV, hasV, dPeso: b.peso - a.peso, a, b };
+  }
+  const totalProg = (a, b) => evaluate(a, b).pct;
+  // Motivos en palabras simples
+  function reasons(e) {
+    const R = [];
+    const kg = (x) => (x > 0 ? "+" : "−") + fmt(Math.abs(x), 2) + " kg";
+    if (e.dF <= -0.2) R.push({ ok: true, t: "Bajó grasa (" + kg(e.dF) + ")" });
+    else if (e.dF >= 0.2) R.push({ ok: false, t: "Subió grasa (" + kg(e.dF) + ")" });
+    if (e.dM >= 0.2) R.push({ ok: true, t: "Ganó músculo (" + kg(e.dM) + ")" });
+    else if (e.dM <= -0.2) R.push({ ok: false, t: "Perdió músculo (" + kg(e.dM) + ")" });
+    if (e.hasV && e.dV < 0) R.push({ ok: true, t: "Bajó grasa visceral (" + fmt(e.a.visceral) + " → " + fmt(e.b.visceral) + ")" });
+    else if (e.hasV && e.dV > 0) R.push({ ok: false, t: "Subió grasa visceral (" + fmt(e.a.visceral) + " → " + fmt(e.b.visceral) + ")" });
+    if (e.dP > 0) R.push({ ok: true, t: "Subió su puntuación (+" + fmt(e.dP) + ")" });
+    else if (e.dP < 0) R.push({ ok: false, t: "Bajó su puntuación (−" + fmt(-e.dP) + ")" });
+    if (!R.length) R.push({ ok: null, t: "Sin cambios importantes" });
+    if (Math.abs(e.dPeso) >= 0.1) R.push({ ok: null, t: "Peso: " + kg(e.dPeso) + " (dato, no cuenta solo)" });
+    return R;
+  }
   const clsOf = (v, n) => n < 2 || Math.round(v * 10) === 0 ? "flat" : v > 0 ? "good" : "bad";
   const round2 = (n) => Math.round(n * 100) / 100;
   function deltaText(a, b, m) {
@@ -555,14 +624,15 @@ a.big-btn { text-decoration: none; }
     const prevs = list.filter((r) => r.mes < ym);
     if (!prevs.length) return { kind: "first", badge: "Inicio", cls: "b-none", pay: 0, star: false, why: "Primer informe: punto de partida." };
     const prev = prevs[prevs.length - 1];
-    const v = totalProg(prev, cur);
+    const ev = evaluate(prev, cur);
+    const v = ev.pct;
     const vs = " vs " + monthName(prev.mes).toLowerCase();
-    if (v > RULES.margen) return { kind: "star", badge: "★", cls: "b-star", pay: 0, star: true, v, why: "Mejoró " + fmtPct(v) + vs + "." };
+    if (v > RULES.margen) return { kind: "star", badge: "★", cls: "b-star", pay: 0, star: true, v, ev, why: "Mejoró " + fmtPct(v) + vs + "." };
     const worse = v < -RULES.margen;
-    if (cur.puntuacion > RULES.exentoSobre) return { kind: "free", badge: "$0", cls: "b-free", pay: 0, star: false, v,
+    if (cur.puntuacion > RULES.exentoSobre) return { kind: "free", badge: "$0", cls: "b-free", pay: 0, star: false, v, ev,
       why: (worse ? "Empeoró " : "Se mantuvo, ") + fmtPct(v) + vs + ". No paga: tiene " + fmt(cur.puntuacion) + " puntos." };
-    if (worse) return { kind: "worse", badge: "$" + RULES.pagoEmpeora, cls: "b-worse", pay: RULES.pagoEmpeora, star: false, v, why: "Empeoró " + fmtPct(v) + vs + "." };
-    return { kind: "keep", badge: "$" + RULES.pagoMantiene, cls: "b-keep", pay: RULES.pagoMantiene, star: false, v, why: "Se mantuvo (" + fmtPct(v) + vs + ")." };
+    if (worse) return { kind: "worse", badge: "$" + RULES.pagoEmpeora, cls: "b-worse", pay: RULES.pagoEmpeora, star: false, v, ev, why: "Empeoró " + fmtPct(v) + vs + "." };
+    return { kind: "keep", badge: "$" + RULES.pagoMantiene, cls: "b-keep", pay: RULES.pagoMantiene, star: false, v, ev, why: "Se mantuvo (" + fmtPct(v) + vs + ")." };
   }
 
   // ================= Render =================
@@ -731,7 +801,21 @@ a.big-btn { text-decoration: none; }
     }
 
     // Explicación del resultado
-    if (v) body.appendChild(el("p", "hint", v.why));
+    // Resultado en grande y el porqué en palabras simples
+    const ev = v ? v.ev : (n > 1 ? evaluate(p.first, p.last) : null);
+    if (ev) {
+      const pv = ev.pct;
+      const word = pv > RULES.margen ? "Mejoró" : pv < -RULES.margen ? "Empeoró" : "Se mantuvo";
+      const res = el("div", "result " + (pv > RULES.margen ? "up" : pv < -RULES.margen ? "down" : "same"));
+      const top = el("div", "result-top");
+      top.append(el("span", "result-word", word), el("span", "result-pct", fmtPct(pv)));
+      res.appendChild(top);
+      res.appendChild(el("div", "result-sub", v ? "Comparado con " + monthName(ev.a.mes).toLowerCase() + (v.kind === "free" ? " · no paga: más de " + RULES.exentoSobre + " puntos" : v.pay ? " · paga $" + v.pay : v.star ? " · gana estrella ★" : "") : "Desde " + monthName(p.first.mes).toLowerCase() + " hasta " + monthName(p.last.mes).toLowerCase()));
+      const ul = el("ul", "reasons");
+      reasons(ev).forEach((r) => { const li = el("li", r.ok === true ? "ok" : r.ok === false ? "warn" : "info"); li.append(el("span", "ico", r.ok === true ? "✓" : r.ok === false ? "!" : "·"), el("span", null, r.t)); ul.appendChild(li); });
+      res.appendChild(ul);
+      body.insertBefore(res, body.firstChild);
+    } else if (v) body.appendChild(el("p", "hint", v.why));
 
     // Medidas: comparadas con el informe anterior (vista mensual) o con el primero (acumulado)
     const cur = v && v.kind !== "none" ? p.list.find((r) => r.mes === selMonth) : p.last;
@@ -749,15 +833,33 @@ a.big-btn { text-decoration: none; }
       c.appendChild(now);
       if (base && base !== cur) {
         const pv = pctProg(base, cur, m);
-        c.appendChild(el("span", "chg " + clsOf(pv, 2), deltaText(base, cur, m) + " · " + fmtPct(pctChange(base, cur, m))));
+        const neutral = m.key === "peso" || m.key === "imc";
+        c.appendChild(el("span", "chg " + (neutral ? "flat" : clsOf(pv, 2)), deltaText(base, cur, m) + " · " + fmtPct(pctChange(base, cur, m))));
       } else c.appendChild(el("span", "chg flat", "—"));
       grid.appendChild(c);
     });
+    if (typeof cur.visceral === "number") {
+      const c = el("div", "metric");
+      c.appendChild(el("span", "label", "Grasa visceral"));
+      c.appendChild(el("span", "now num", fmt(cur.visceral)));
+      if (base && base !== cur && typeof base.visceral === "number") {
+        const d = cur.visceral - base.visceral;
+        c.appendChild(el("span", "chg " + (d < 0 ? "good" : d > 0 ? "bad" : "flat"), d ? (d > 0 ? "+" : "−") + fmt(Math.abs(d)) : "igual"));
+      } else c.appendChild(el("span", "chg flat", "—"));
+      grid.appendChild(c);
+    }
     body.appendChild(grid);
+    if (typeof cur.metaGrasa === "number" || typeof cur.metaMusculo === "number") {
+      const g = [];
+      if (typeof cur.metaGrasa === "number") g.push(cur.metaGrasa < -0.05 ? "bajar " + fmt(-cur.metaGrasa) + " kg de grasa" : "mantener su grasa");
+      if (typeof cur.metaMusculo === "number") g.push(cur.metaMusculo > 0.05 ? "subir " + fmt(cur.metaMusculo) + " kg de músculo" : "mantener su músculo");
+      body.appendChild(el("p", "hint", "Su meta según el informe: " + g.join(" y ") + "."));
+    }
     if (n > 1) {
       const tp = totalProg(p.first, p.last);
       const tl = el("div", "total");
-      tl.append(el("span", "label", "Avance desde " + monthName(p.first.mes).toLowerCase()), el("span", "big " + clsOf(tp, n), fmtPct(tp)));
+      if (n === 2 && v) tl.hidden = true;   // con dos informes sería el mismo resultado de arriba
+      tl.append(el("span", "label", "Desde " + monthName(p.first.mes).toLowerCase() + ": " + (tp > RULES.margen ? "mejoró" : tp < -RULES.margen ? "empeoró" : "se mantuvo")), el("span", "big " + clsOf(tp, n), fmtPct(tp)));
       body.appendChild(tl);
       const chips = el("div", "chips"); chips.setAttribute("role", "group"); chips.setAttribute("aria-label", "Medida del gráfico");
       const box = el("div", "chart-box");
@@ -1109,7 +1211,7 @@ a.big-btn { text-decoration: none; }
       if (!persona) { setMsg(fld("persona"), "Escribe el nombre.", "err"); ok = false; }
       const mes = get("mes").value;
       if (!/^\d{4}-\d{2}$/.test(mes)) { setMsg(fld("mes"), "Elige el mes.", "err"); ok = false; }
-      const data = { persona, fecha: c.fecha && c.fecha.slice(0, 7) === mes ? c.fecha : mes + "-01", ...(c.perfil || {}) };
+      const data = { persona, fecha: c.fecha && c.fecha.slice(0, 7) === mes ? c.fecha : mes + "-01", ...(c.perfil || {}), ...(c.extra || {}) };
       METRICS.forEach((m) => {
         const v = get(m.key).value.trim(), n = parseNum(v), f = fld(m.key);
         if (!v) { setMsg(f, "Falta este dato.", "err"); ok = false; }
@@ -1139,15 +1241,17 @@ a.big-btn { text-decoration: none; }
       const fld = o.card.node.querySelector("[data-f=persona]").closest(".field");
       const twin = rows.find((r) => same(r, o.row));
       const month = rows.find((r) => rowKey(r) === rowKey(o.row));
-      if (twin) { setMsg(fld, "Este informe ya está guardado" + (nameKey(twin.persona) !== nameKey(o.row.persona) ? " como " + twin.persona : "") + ". No se sube de nuevo.", "err"); dups.push(o); }
+      if (twin && hasExtra(o.row) && EXTRA.some((k) => typeof o.row[k] === "number" && typeof twin[k] !== "number")) { o.enrich = true; toSave.push(o); }
+      else if (twin) { setMsg(fld, "Este informe ya está guardado" + (nameKey(twin.persona) !== nameKey(o.row.persona) ? " como " + twin.persona : "") + ". No se sube de nuevo.", "err"); dups.push(o); }
       else if (month) { setMsg(fld, month.persona + " ya tiene informe de " + monthName(o.row.mes).toLowerCase() + ". Para cambiarlo, bórralo primero en Detalle por persona.", "err"); dups.push(o); }
       else toSave.push(o);
     });
-    let saved = 0;
+    let saved = 0, completed = 0;
     if (toSave.length) {
       status("save-status", "Guardando en Supabase…", "info");
       try {
-        saved = Number(await rpc("guardar_informes", { p_pin: pin, p_informes: toSave.map((o) => strip(o.row)) })) || 0;
+        const res = await rpc("guardar_informes2", { p_informes: toSave.map((o) => strip(o.row)) }) || {};
+        saved = Number(res.nuevos) || 0; completed = Number(res.completados) || 0;
         await loadData();
       } catch (e) {
         btn.disabled = false; renderAll();
@@ -1162,13 +1266,14 @@ a.big-btn { text-decoration: none; }
       if (!dups.length) status("ocr-status", "");
     }
     renderAll();
-    const skipped = toSave.length - saved;
+    const skipped = toSave.length - saved - completed;
     const parts = [];
     if (saved) parts.push((saved === 1 ? "1 informe guardado" : saved + " informes guardados") + ". Toda la familia ya los puede ver.");
+    if (completed) parts.push(completed === 1 ? "1 informe ya guardado se completó con los datos nuevos (sin duplicarlo)." : completed + " informes ya guardados se completaron con los datos nuevos (sin duplicarlos).");
     if (skipped > 0) parts.push(skipped === 1 ? "1 ya estaba guardado y no se repitió." : skipped + " ya estaban guardados y no se repitieron.");
     if (dups.length) parts.push(dups.length === 1 ? "1 tarjeta no se subió porque ya existe (en rojo); puedes quitarla." : dups.length + " tarjetas no se subieron porque ya existen (en rojo); puedes quitarlas.");
-    status("save-status", parts.join(" ") || "No había nada nuevo para guardar.", saved && !dups.length ? "ok" : "warn");
-    if (saved && !dups.length) { status("save-status", ""); status("home-msg", parts.join(" "), "ok"); location.hash = ""; }
+    status("save-status", parts.join(" ") || "No había nada nuevo para guardar.", (saved || completed) && !dups.length ? "ok" : "warn");
+    if ((saved || completed) && !dups.length) { status("save-status", ""); status("home-msg", parts.join(" "), "ok"); location.hash = ""; }
   });
 
   // ================= Lectura de informes (OCR) =================
@@ -1261,6 +1366,8 @@ a.big-btn { text-decoration: none; }
     [0.030, 0.165, 0.590, 0.345], // tabla de composición corporal
     [0.635, 0.145, 0.975, 0.205], // puntuación corporal
     [0.635, 0.365, 0.975, 0.545], // IMC y % de grasa
+    [0.635, 0.255, 0.975, 0.345], // metas: masa grasa y masa muscular óptimas
+    [0.635, 0.800, 0.975, 0.990], // otros indicadores: grasa visceral
   ];
   const num = (s) => Number(String(s).replace(",", "."));
   // La puntuación es un número grande azul pegado a "/100": se aíslan los píxeles azules y se leen solo dígitos
@@ -1297,6 +1404,12 @@ a.big-btn { text-decoration: none; }
     if ((m = t.match(/grasa\s+corporal\s*[:;]\s*(\d{1,2}[.,]\d{1,2})/i))) out.grasaPct = num(m[1]);
     if ((m = t.match(/(\d{1,3})\s*\/\s*1\s*[0oO]\s*[0oO]/)) || (m = t.match(/\b(\d{2,3})\D{1,4}[0oO]\s*[0oO]\s*Puntos/i))) out.puntuacion = Number(m[1]);
     if ((m = t.match(/Altura\s*[:;]?\s*(\d{3}(?:[.,]\d)?)/i))) out.altura = num(m[1]);
+    const snum = (x) => Number(String(x).replace(/\s/g, "").replace(/[−–]/g, "-").replace(",", "."));
+    if ((m = t.match(/Grasa\s+visceral\s*[:;]?\s*(\d{1,2})\b/i))) out.visceral = Number(m[1]);
+    if ((m = t.match(/masa\s+grasa\s+[óo0]ptima\s*([+\-−–]?\s*\d{1,3}[.,]\d{1,2})/i))) out.metaGrasa = snum(m[1]);
+    if ((m = t.match(/masa\s+muscular\s+[óo0]ptima\s*([+\-−–]?\s*\d{1,3}[.,]\d{1,2})/i))) out.metaMusculo = snum(m[1]);
+    if ((m = t.match(/grasa\s+corporal\s+\d{1,3}[.,]\d{1,2}\s+(\d{1,3}[.,]\d{1,2})\s*[-–—]\s*(\d{1,3}[.,]\d{1,2})/i))) { out.grasaMin = num(m[1]); out.grasaMax = num(m[2]); }
+    if ((m = t.match(/^\s*Masa\s+muscular\s+\d{1,3}[.,]\d{1,2}\s+(\d{1,3}[.,]\d{1,2})\s*[-–—]\s*(\d{1,3}[.,]\d{1,2})/im))) { out.musculoMin = num(m[1]); out.musculoMax = num(m[2]); }
     if ((m = t.match(/G[ée]nero\s*[:;]?\s*(Hombre|Mujer)/i))) out.genero = cap(m[1].toLowerCase());
     if ((m = t.match(/Edad\s*[:;]?\s*(\d{1,3})\b/i))) out.edad = Number(m[1]);
     if ((m = t.match(/prueba\s*[:;.]?\s*(\d{1,2})\s*([A-Za-zÁÉÍÓÚáéíóú]{3,})\.?\s*(\d{4})/i)) ||
@@ -1364,6 +1477,16 @@ a.big-btn { text-decoration: none; }
     const get = (k) => card.node.querySelector("[data-f=" + k + "]");
     const fld = (k) => get(k).closest(".field");
     card.perfil = { altura: v.altura, genero: v.genero, edad: v.edad };
+    card.extra = {};
+    EXTRA.forEach((k) => { if (typeof v[k] === "number" && isFinite(v[k])) card.extra[k] = v[k]; });
+    if (typeof card.extra.visceral === "number" && (card.extra.visceral < 1 || card.extra.visceral > 59)) delete card.extra.visceral;
+    const ex = [];
+    if (typeof card.extra.visceral === "number") ex.push("grasa visceral " + card.extra.visceral);
+    if (typeof card.extra.metaGrasa === "number") ex.push("meta de grasa " + (card.extra.metaGrasa > 0 ? "+" : "") + fmt(card.extra.metaGrasa) + " kg");
+    if (typeof card.extra.metaMusculo === "number") ex.push("meta de músculo " + (card.extra.metaMusculo > 0 ? "+" : "") + fmt(card.extra.metaMusculo) + " kg");
+    const exNode = card.node.querySelector(".extra-line") || el("p", "hint extra-line");
+    exNode.textContent = ex.length ? "También leído: " + ex.join(" · ") + "." : "";
+    if (!exNode.parentNode) card.node.querySelector("details").before(exNode);
     let nm = nameFromFile(file.name);
     get("persona").value = nm;
     if (!nm) {

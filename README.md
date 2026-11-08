@@ -25,13 +25,26 @@ Acceso directo: cualquiera con el link puede subir informes y marcar pagos. No s
 
 ## Reglamento
 
-Cada mes se compara el informe de cada persona con su informe anterior,
-usando el promedio del % de cambio de las 6 medidas
-(bajar peso, IMC, masa grasa y % grasa es avance; subir músculo y puntuación es avance).
+Cada mes se compara el informe de cada persona con su informe anterior. La app solo muestra
+**Mejoró / Se mantuvo / Empeoró** y un **porcentaje**, con el porqué en palabras simples.
+
+Por dentro mira lo que importa para la salud, según la meta del propio informe de cada uno:
+
+| Factor | Peso |
+|---|---|
+| Grasa corporal (bajar mientras esté por encima de su rango sano) | 35 % |
+| Masa muscular (ganar suma, perder siempre resta) | 30 % |
+| Puntuación corporal RENPHO | 20 % |
+| Grasa visceral | 15 % |
+
+El peso solo no cuenta (bajar de peso perdiendo músculo no es mejorar). Cambios menores a 0,2 kg
+no cuentan porque están dentro del error de la báscula.
 
 | Resultado | Regla |
 |---|---|
-| ★ Estrella dorada | Mejora más de 0,5 % |
-| $1 | Se mantiene (entre −0,5 % y +0,5 %) |
-| $5 | Empeora más de 0,5 % |
+| ★ Mejoró | más de +10 % |
+| $1 Se mantuvo | entre −10 % y +10 % |
+| $5 Empeoró | menos de −10 % |
 | $0 | Puntuación corporal mayor a 75: no paga |
+
+Recomendación: pesarse en ayunas, a la misma hora y sin haber hecho ejercicio.
