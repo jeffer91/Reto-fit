@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b6e8a">
+<title>Reto Fit Familia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+/* Layout: una columna tipo app móvil — ranking arriba, detalle por persona, formulario al final */
+:root {
+  --bg: #f3f6f8;
+  --surface: #ffffff;
+  --line: #dbe3e9;
+  --fg: #14222d;
+  --muted: #5a6b78;
+  --accent: #0b6e8a;
+  --accent-soft: #e0f0f5;
+  --good: #1d7a46;
+  --good-soft: #e3f3e9;
+  --bad: #b3372b;
+  --bad-soft: #fbe7e4;
+  --font-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1519; --surface: #162128; --line: #26353f; --fg: #e6eef3; --muted: #94a6b3;
+    --accent: #4fb8d6; --accent-soft: #15323d; --good: #5cc98a; --good-soft: #163325;
+    --bad: #f08476; --bad-soft: #3a1d1a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1519; --surface: #162128; --line: #26353f; --fg: #e6eef3; --muted: #94a6b3;
+  --accent: #4fb8d6; --accent-soft: #15323d; --good: #5cc98a; --good-soft: #163325;
+  --bad: #f08476; --bad-soft: #3a1d1a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+.wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+h1, h2 { font-family: var(--font-display); font-weight: 700; letter-spacing: .01em; margin: 0; text-wrap: balance; }
+h1 { font-size: 2.2rem; line-height: 1; }
+h2 { font-size: 1.45rem; line-height: 1.1; }
+.sub { color: var(--muted); margin: 6px 0 0; }
+.num { font-family: var(--font-display); font-variant-numeric: tabular-nums; }
+.label { font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; }
+section { display: flex; flex-direction: column; gap: 12px; }
+.head-row { display: flex; justify-content: space-between; align-items: end; gap: 12px; flex-wrap: wrap; }
+
+/* Selector de métrica */
+.chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none; border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+  font: 600 .85rem var(--font-body); padding: 7px 12px; border-radius: 999px; cursor: pointer;
+}
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Ranking */
+.rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+.rank li { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 10px; padding: 12px 14px; border-top: 1px solid var(--line); cursor: pointer; }
+.rank li:first-child { border-top: 0; }
+.rank li:hover { background: var(--accent-soft); }
+.pos { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; color: var(--muted); text-align: center; }
+.rank li:first-child .pos { color: var(--accent); }
+.who { min-width: 0; }
+.who b { display: block; font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.who span { color: var(--muted); font-size: .82rem; }
+.delta { font-family: var(--font-display); font-size: 1.25rem; font-weight: 600; padding: 2px 10px; border-radius: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.delta.good { color: var(--good); background: var(--good-soft); }
+.delta.bad { color: var(--bad); background: var(--bad-soft); }
+.delta.flat { color: var(--muted); background: var(--bg); font-size: .95rem; font-family: var(--font-body); }
+
+/* Detalle persona */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+select, input {
+  font: 500 1rem var(--font-body); color: var(--fg); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; width: 100%; min-width: 0;
+}
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.metric { background: var(--surface); padding: 10px 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.metric .now { font-size: 1.6rem; font-weight: 600; line-height: 1.05; }
+.metric .now small { font-family: var(--font-body); font-size: .72rem; color: var(--muted); font-weight: 500; margin-left: 2px; }
+.metric .chg { font-size: .8rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.chg.good { color: var(--good); } .chg.bad { color: var(--bad); } .chg.flat { color: var(--muted); font-weight: 500; }
+.chart-box { width: 100%; }
+.chart-box svg { display: block; width: 100%; height: auto; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .88rem; font-variant-numeric: tabular-nums; }
+th, td { padding: 7px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
+th:first-child, td:first-child { text-align: left; }
+.del { background: none; border: 0; color: var(--muted); cursor: pointer; font: 600 .8rem var(--font-body); padding: 4px 6px; border-radius: 6px; }
+.del:hover { color: var(--bad); background: var(--bad-soft); }
+.confirm { display: inline-flex; gap: 4px; }
+.confirm button { border: 0; border-radius: 6px; padding: 4px 8px; font: 600 .78rem var(--font-body); cursor: pointer; }
+.confirm .yes { background: var(--bad); color: var(--surface); }
+.confirm .no { background: var(--bg); color: var(--fg); }
+
+/* Formulario */
+form { display: flex; flex-direction: column; gap: 14px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.field label { font-size: .82rem; font-weight: 600; }
+.field label em { font-style: normal; color: var(--muted); font-weight: 500; }
+.field.err input { border-color: var(--bad); }
+.field .msg { color: var(--bad); font-size: .76rem; min-height: 0; }
+.primary { background: var(--accent); color: var(--surface); border: 0; border-radius: 8px; padding: 12px 16px; font: 700 1rem var(--font-body); cursor: pointer; }
+.primary:disabled { opacity: .55; cursor: default; }
+.hint { color: var(--muted); font-size: .82rem; margin: 0; }
+.status { font-size: .88rem; padding: 10px 12px; border-radius: 8px; }
+.status.ok { background: var(--good-soft); color: var(--good); }
+.status.warn { background: var(--bad-soft); color: var(--bad); }
+.tag { font-size: .7rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 2px 7px; border-radius: 999px; }
+.row-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.ghost { background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; font: 600 .9rem var(--font-body); cursor: pointer; }
+textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; width: 100%; min-height: 180px; resize: vertical; }
+.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: var(--r); padding: 22px 16px; color: var(--muted); text-align: center; }
+@media (max-width: 480px) {
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  h1 { font-size: 1.9rem; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Reto Fit Familia</h1>
+    <p class="sub">Avance de cada uno desde su primera medición en la báscula.</p>
+  </header>
+
+  <div id="banner" class="status warn" hidden></div>
+
+  <section aria-labelledby="t-rank">
+    <div class="head-row">
+      <h2 id="t-rank">Quién va avanzando más</h2>
+      <span class="label" id="rank-note">Cambio desde la 1.ª medición</span>
+    </div>
+    <div class="chips" id="chips" role="group" aria-label="Medida para el ranking"></div>
+    <div id="rank-area"><div class="empty">Cargando mediciones…</div></div>
+  </section>
+
+  <section aria-labelledby="t-det">
+    <h2 id="t-det">Detalle por persona</h2>
+    <div id="detail-area"><div class="empty">Aquí verás la evolución de cada miembro de la familia cuando haya mediciones.</div></div>
+  </section>
+
+  <section aria-labelledby="t-form" id="form-section">
+    <h2 id="t-form">Nueva medición</h2>
+    <form id="f" class="panel" novalidate>
+      <div class="grid2">
+        <div class="field">
+          <label for="persona">Nombre</label>
+          <input id="persona" list="personas" autocomplete="off" maxlength="40" placeholder="Ej. Jefferson">
+          <datalist id="personas"></datalist>
+          <div class="msg"></div>
+        </div>
+        <div class="field">
+          <label for="fecha">Fecha</label>
+          <input id="fecha" type="date">
+          <div class="msg"></div>
+        </div>
+      </div>
+      <div class="grid2" id="num-fields"></div>
+      <p class="hint">Copia los valores tal como salen en el informe de la báscula. Usa punto o coma para los decimales.</p>
+      <button class="primary" id="save" type="submit">Guardar medición</button>
+      <div id="form-status" class="status" hidden></div>
+    </form>
+  </section>
+  <section aria-labelledby="t-io">
+    <h2 id="t-io">Compartir con la familia</h2>
+    <div class="panel">
+      <p class="hint" id="local-count"></p>
+      <p class="hint">Lo que guardas aquí se queda en este teléfono. Para que todos lo vean, copia los datos y pégalos en el archivo <b>datos.json</b> del repositorio.</p>
+      <div class="row-btns">
+        <button type="button" class="ghost" id="btn-export">Copiar datos</button>
+        <button type="button" class="ghost" id="btn-import">Pegar datos</button>
+      </div>
+      <div id="io-box" hidden>
+        <input type="hidden" id="io-mode" value="export">
+        <div class="field" style="gap:8px">
+          <label for="io-text" id="io-help"></label>
+          <textarea id="io-text" spellcheck="false"></textarea>
+          <div class="row-btns">
+            <button type="button" class="primary" id="btn-io">Copiar texto</button>
+            <button type="button" class="ghost" id="btn-close-io">Cerrar</button>
+          </div>
+          <div id="io-msg" class="status" hidden></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  // Medidas del reto. better: "down" = bajar es avance, "up" = subir es avance.
+  const METRICS = [
+    { key: "puntuacion",   name: "Puntuación corporal", short: "Puntuación", unit: "pts", better: "up",   min: 0,  max: 150 },
+    { key: "peso",         name: "Peso",                short: "Peso",       unit: "kg",  better: "down", min: 10, max: 300 },
+    { key: "grasaPct",     name: "Porcentaje de grasa", short: "% Grasa",    unit: "%",   better: "down", min: 1,  max: 75 },
+    { key: "masaGrasa",    name: "Masa grasa",          short: "Masa grasa", unit: "kg",  better: "down", min: 0.5, max: 200 },
+    { key: "masaMuscular", name: "Masa muscular",       short: "Músculo",    unit: "kg",  better: "up",   min: 5,  max: 150 },
+    { key: "imc",          name: "IMC",                 short: "IMC",        unit: "",    better: "down", min: 8,  max: 80 },
+  ];
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n, d = 2) => Number(n).toLocaleString("es", { minimumFractionDigits: 0, maximumFractionDigits: d });
+  const fmtDate = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" }); };
+  const todayStr = () => { const t = new Date(); return t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0"); };
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const normName = (s) => s.trim().replace(/\s+/g, " ");
+  const nameKey = (s) => normName(s).toLocaleLowerCase("es");
+
+  let rows = [];            // mediciones
+  let rankMetric = "puntuacion";
+  let selected = null;      // nameKey de la persona elegida
+  let chartMetric = "peso";
+  let pendingDelete = null;
+  let saveRow = null, deleteRow = null;
+
+  // ---------- Formulario ----------
+  const numWrap = $("num-fields");
+  METRICS.forEach((m) => {
+    const f = el("div", "field");
+    const lab = el("label"); lab.htmlFor = "m-" + m.key; lab.textContent = m.name + " ";
+    if (m.unit) lab.appendChild(el("em", null, "(" + m.unit + ")"));
+    const inp = el("input"); inp.id = "m-" + m.key; inp.inputMode = "decimal"; inp.autocomplete = "off";
+    inp.placeholder = { puntuacion: "61", peso: "90.75", grasaPct: "35.3", masaGrasa: "32.03", masaMuscular: "54.81", imc: "30.3" }[m.key];
+    f.append(lab, inp, el("div", "msg"));
+    numWrap.appendChild(f);
+  });
+  $("fecha").value = todayStr();
+  $("fecha").max = todayStr();
+
+  function setErr(input, msg) {
+    const f = input.closest(".field");
+    f.classList.toggle("err", !!msg);
+    f.querySelector(".msg").textContent = msg || "";
+  }
+  function parseNum(v) {
+    const s = String(v).trim().replace(",", ".");
+    if (!/^\d+(\.\d+)?$/.test(s)) return NaN;
+    return Number(s);
+  }
+  function showStatus(msg, kind) {
+    const s = $("form-status");
+    s.textContent = msg; s.className = "status " + kind; s.hidden = !msg;
+  }
+
+  $("f").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showStatus("", "ok");
+    let ok = true;
+    const persona = normName($("persona").value);
+    if (!persona) { setErr($("persona"), "Escribe el nombre."); ok = false; } else setErr($("persona"));
+    const fecha = $("fecha").value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) { setErr($("fecha"), "Elige una fecha."); ok = false; }
+    else if (fecha > todayStr()) { setErr($("fecha"), "La fecha no puede ser futura."); ok = false; }
+    else setErr($("fecha"));
+    const data = { persona, fecha };
+    METRICS.forEach((m) => {
+      const inp = $("m-" + m.key);
+      const n = parseNum(inp.value);
+      if (inp.value.trim() === "") { setErr(inp, "Falta este dato."); ok = false; }
+      else if (isNaN(n)) { setErr(inp, "Solo números, ej. 54.8"); ok = false; }
+      else if (n < m.min || n > m.max) { setErr(inp, "Revisa: entre " + m.min + " y " + m.max + "."); ok = false; }
+      else { setErr(inp); data[m.key] = n; }
+    });
+    if (!ok) { showStatus("Corrige los campos marcados en rojo.", "warn"); return; }
+    // Si ya hay una medición de esa persona en esa fecha, se reemplaza (evita duplicados).
+    const existing = rows.find((r) => nameKey(r.persona) === nameKey(persona) && r.fecha === fecha);
+    data.creado = new Date().toISOString();
+    $("save").disabled = true;
+    try {
+      await saveRow(data, existing);
+      showStatus((existing ? "Medición actualizada" : "Medición guardada") + " para " + persona + " en este teléfono. Usa \"Copiar datos\" para pasarla al archivo de la familia.", "ok");
+      METRICS.forEach((m) => { $("m-" + m.key).value = ""; });
+      selected = nameKey(persona);
+    } catch (err) {
+      showStatus("No se pudo guardar en este teléfono. Revisa que el navegador no esté en modo incógnito.", "warn");
+    } finally { $("save").disabled = false; }
+  });
+
+
+  // ---------- Cálculos ----------
+  function people() {
+    const map = new Map();
+    rows.forEach((r) => {
+      const k = nameKey(r.persona);
+      if (!map.has(k)) map.set(k, { key: k, name: r.persona, list: [] });
+      map.get(k).list.push(r);
+    });
+    map.forEach((p) => {
+      p.list.sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : (a.creado || "").localeCompare(b.creado || ""));
+      p.name = p.list[p.list.length - 1].persona;
+      p.first = p.list[0];
+      p.last = p.list[p.list.length - 1];
+    });
+    return [...map.values()];
+  }
+  // Avance con signo: positivo = mejoró
+  function progress(p, m) {
+    const d = p.last[m.key] - p.first[m.key];
+    return m.better === "up" ? d : -d;
+  }
+  function deltaInfo(p, m) {
+    const raw = round(p.last[m.key] - p.first[m.key]);
+    const prog = m.better === "up" ? raw : -raw;
+    const cls = p.list.length < 2 || raw === 0 ? "flat" : prog > 0 ? "good" : "bad";
+    const sign = raw > 0 ? "+" : raw < 0 ? "−" : "";
+    return { raw, cls, text: sign + fmt(Math.abs(raw)) + (m.unit ? " " + m.unit : "") };
+  }
+  const round = (n) => Math.round(n * 100) / 100;
+
+  // ---------- Render ----------
+  function renderChips() {
+    const c = $("chips"); c.textContent = "";
+    METRICS.forEach((m) => {
+      const b = el("button", "chip", m.short); b.type = "button";
+      b.setAttribute("aria-pressed", String(m.key === rankMetric));
+      b.addEventListener("click", () => { rankMetric = m.key; render(); });
+      c.appendChild(b);
+    });
+  }
+
+  function renderRank(ps) {
+    const area = $("rank-area"); area.textContent = "";
+    if (!ps.length) {
+      area.appendChild(el("div", "empty", "Aún no hay mediciones. Agrega la primera con el formulario de abajo."));
+      return;
+    }
+    const m = METRICS.find((x) => x.key === rankMetric);
+    const sorted = ps.slice().sort((a, b) => {
+      const aa = a.list.length > 1, bb = b.list.length > 1;
+      if (aa !== bb) return aa ? -1 : 1;
+      return progress(b, m) - progress(a, m) || a.name.localeCompare(b.name, "es");
+    });
+    const ul = el("ol", "rank");
+    sorted.forEach((p, i) => {
+      const li = el("li"); li.tabIndex = 0;
+      li.appendChild(el("span", "pos", p.list.length > 1 ? String(i + 1) : "–"));
+      const who = el("div", "who");
+      who.appendChild(el("b", null, p.name));
+      who.appendChild(el("span", null, fmt(p.first[m.key]) + " → " + fmt(p.last[m.key]) + (m.unit ? " " + m.unit : "") + " · " + p.list.length + (p.list.length === 1 ? " medición" : " mediciones")));
+      li.appendChild(who);
+      const d = deltaInfo(p, m);
+      li.appendChild(el("span", "delta " + d.cls, p.list.length < 2 ? "Falta 2.ª medición" : d.text));
+      const pick = () => { selected = p.key; render(); $("t-det").scrollIntoView({ behavior: "smooth", block: "start" }); };
+      li.addEventListener("click", pick);
+      li.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
+      ul.appendChild(li);
+    });
+    area.appendChild(ul);
+    $("rank-note").textContent = m.better === "up" ? "Subir es avance" : "Bajar es avance";
+  }
+
+  function renderDetail(ps) {
+    const area = $("detail-area"); area.textContent = "";
+    if (!ps.length) { area.appendChild(el("div", "empty", "Aquí verás la evolución de cada miembro de la familia cuando haya mediciones.")); return; }
+    if (!selected || !ps.some((p) => p.key === selected)) selected = ps.slice().sort((a, b) => a.name.localeCompare(b.name, "es"))[0].key;
+    const p = ps.find((x) => x.key === selected);
+    const panel = el("div", "panel");
+
+    const sel = el("select"); sel.id = "pick-person"; sel.setAttribute("aria-label", "Persona");
+    ps.slice().sort((a, b) => a.name.localeCompare(b.name, "es")).forEach((x) => {
+      const o = el("option", null, x.name); o.value = x.key; if (x.key === selected) o.selected = true; sel.appendChild(o);
+    });
+    sel.addEventListener("change", () => { selected = sel.value; render(); });
+    panel.appendChild(sel);
+
+    const lab = el("div", "label", p.list.length > 1 ? "Última medición · " + fmtDate(p.last.fecha) + " · cambio desde " + fmtDate(p.first.fecha) : "Primera medición · " + fmtDate(p.last.fecha));
+    panel.appendChild(lab);
+
+    const grid = el("div", "metrics");
+    METRICS.forEach((m) => {
+      const c = el("div", "metric");
+      c.appendChild(el("span", "label", m.short));
+      const now = el("span", "now num", fmt(p.last[m.key]));
+      if (m.unit) now.appendChild(el("small", null, m.unit));
+      c.appendChild(now);
+      const d = deltaInfo(p, m);
+      c.appendChild(el("span", "chg " + d.cls, p.list.length < 2 ? "Punto de partida" : d.text));
+      grid.appendChild(c);
+    });
+    panel.appendChild(grid);
+
+    if (p.list.length > 1) {
+      const chips = el("div", "chips"); chips.setAttribute("role", "group"); chips.setAttribute("aria-label", "Medida del gráfico");
+      METRICS.forEach((m) => {
+        const b = el("button", "chip", m.short); b.type = "button";
+        b.setAttribute("aria-pressed", String(m.key === chartMetric));
+        b.addEventListener("click", () => { chartMetric = m.key; render(); });
+        chips.appendChild(b);
+      });
+      panel.appendChild(chips);
+      const box = el("div", "chart-box");
+      box.appendChild(chart(p, METRICS.find((x) => x.key === chartMetric)));
+      panel.appendChild(box);
+    }
+
+    // Tabla
+    const tw = el("div", "table-wrap");
+    const t = el("table");
+    const thead = el("thead"); const hr = el("tr");
+    ["Fecha", ...METRICS.map((m) => m.short), ""].forEach((h) => hr.appendChild(el("th", null, h)));
+    thead.appendChild(hr); t.appendChild(thead);
+    const tb = el("tbody");
+    p.list.slice().reverse().forEach((r) => {
+      const tr = el("tr");
+      tr.appendChild(el("td", null, fmtDate(r.fecha)));
+      METRICS.forEach((m) => tr.appendChild(el("td", "num", fmt(r[m.key]))));
+      const td = el("td");
+      if (r.origen !== "local") {
+        td.appendChild(el("span", "tag", "Familia"));
+      } else {
+        if (pendingDelete === r.id) {
+          const w = el("span", "confirm");
+          const y = el("button", "yes", "Borrar"); y.type = "button";
+          const n = el("button", "no", "No"); n.type = "button";
+          y.addEventListener("click", async () => {
+            y.disabled = true;
+            pendingDelete = null;
+            try { await deleteRow(r); }
+            catch (err) { showBanner("No se pudo borrar la medición. Inténtalo otra vez."); render(); }
+          });
+          n.addEventListener("click", () => { pendingDelete = null; render(); });
+          w.append(y, n); td.appendChild(w);
+        } else {
+          const b = el("button", "del", "Borrar"); b.type = "button";
+          b.setAttribute("aria-label", "Borrar medición del " + fmtDate(r.fecha));
+          b.addEventListener("click", () => { pendingDelete = r.id; render(); });
+          td.appendChild(b);
+        }
+      }
+      tr.appendChild(td);
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb); tw.appendChild(t); panel.appendChild(tw);
+    area.appendChild(panel);
+  }
+
+  function chart(p, m) {
+    const NS = "http://www.w3.org/2000/svg";
+    const W = 640, H = 300, L = 70, R = 16, T = 34, B = 44;
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", m.name + " de " + p.name + " a lo largo del tiempo");
+    const mk = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; svg.appendChild(e); return e; };
+    const pts = p.list.map((r) => ({ t: dayNum(r.fecha), v: r[m.key], f: r.fecha }));
+    let lo = Math.min(...pts.map((x) => x.v)), hi = Math.max(...pts.map((x) => x.v));
+    if (hi - lo < 1e-9) { lo -= 1; hi += 1; }
+    const pad = (hi - lo) * 0.15; lo -= pad; hi += pad;
+    const t0 = pts[0].t, t1 = pts[pts.length - 1].t;
+    const x = (t) => t1 === t0 ? (L + (W - R)) / 2 : L + (t - t0) / (t1 - t0) * (W - L - R);
+    const y = (v) => T + (hi - v) / (hi - lo) * (H - T - B);
+    // Rejilla: 4 líneas
+    for (let i = 0; i <= 3; i++) {
+      const v = lo + (hi - lo) * i / 3, yy = y(v);
+      mk("line", { x1: L, x2: W - R, y1: yy, y2: yy, stroke: "var(--line)", "stroke-width": 1 });
+      mk("text", { x: L - 8, y: yy + 7, "text-anchor": "end", "font-size": 20, fill: "var(--muted)", "font-family": "var(--font-body)" }, fmt(v, 1));
+    }
+    const d = pts.map((q, i) => (i ? "L" : "M") + x(q.t).toFixed(1) + " " + y(q.v).toFixed(1)).join(" ");
+    const area = d + " L" + x(pts[pts.length - 1].t).toFixed(1) + " " + (H - B) + " L" + x(pts[0].t).toFixed(1) + " " + (H - B) + " Z";
+    mk("path", { d: area, fill: "var(--accent)", "fill-opacity": .1, stroke: "none" });
+    mk("path", { d, fill: "none", stroke: "var(--accent)", "stroke-width": 2.5, "stroke-linejoin": "round", "stroke-linecap": "round" });
+    pts.forEach((q, i) => {
+      const last = i === pts.length - 1;
+      mk("circle", { cx: x(q.t), cy: y(q.v), r: last ? 5.5 : 3.5, fill: last ? "var(--accent)" : "var(--surface)", stroke: "var(--accent)", "stroke-width": 2 });
+    });
+    // Etiquetas de fecha: primera y última
+    const fl = (q, anchor) => mk("text", { x: x(q.t), y: H - 12, "text-anchor": anchor, "font-size": 20, fill: "var(--muted)", "font-family": "var(--font-body)" }, fmtDate(q.f));
+    fl(pts[0], "start");
+    if (pts.length > 1 && t1 !== t0) fl(pts[pts.length - 1], "end");
+    const lq = pts[pts.length - 1];
+    mk("text", { x: Math.min(x(lq.t), W - R - 4), y: Math.max(y(lq.v) - 14, 24), "text-anchor": "end", "font-size": 24, "font-weight": 700, fill: "var(--fg)", "font-family": "var(--font-body)" }, fmt(lq.v) + (m.unit ? " " + m.unit : ""));
+    return svg;
+  }
+  const dayNum = (s) => { const [y, m, d] = s.split("-").map(Number); return Date.UTC(y, m - 1, d) / 86400000; };
+
+  function renderDatalist(ps) {
+    const dl = $("personas"); dl.textContent = "";
+    ps.forEach((p) => { const o = el("option"); o.value = p.name; dl.appendChild(o); });
+  }
+
+  function render() {
+    const ps = people();
+    renderChips();
+    renderRank(ps);
+    renderDetail(ps);
+    renderDatalist(ps);
+  }
+  function showBanner(msg) { const b = $("banner"); b.textContent = msg; b.hidden = !msg; }
+
+  // ---------- Datos ----------
+  // shared = datos.json del repositorio (lo ve toda la familia)
+  // local  = mediciones guardadas en este teléfono (localStorage)
+  const LS_KEY = "retofit.local.v1";
+  let shared = [], local = [];
+  function cleanObj(d, id, origen) {
+    if (!d || typeof d !== "object") return null;
+    if (typeof d.persona !== "string" || !normName(d.persona) || !/^\d{4}-\d{2}-\d{2}$/.test(d.fecha || "")) return null;
+    for (const m of METRICS) if (typeof d[m.key] !== "number" || !isFinite(d[m.key])) return null;
+    return { id, origen, persona: normName(d.persona).slice(0, 40), fecha: d.fecha, creado: typeof d.creado === "string" ? d.creado : "",
+      ...Object.fromEntries(METRICS.map((m) => [m.key, d[m.key]])) };
+  }
+  function loadLocal() {
+    try {
+      const arr = JSON.parse(localStorage.getItem(LS_KEY) || "[]");
+      local = Array.isArray(arr) ? arr.map((d, i) => cleanObj(d, d && d.id ? String(d.id) : "l" + i, "local")).filter(Boolean) : [];
+    } catch (_) { local = []; }
+  }
+  function saveLocal() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(local.map(strip).map((d, i) => ({ id: local[i].id, ...d })))); return true; }
+    catch (_) { return false; }
+  }
+  function strip(r) {
+    const o = { persona: r.persona, fecha: r.fecha };
+    METRICS.forEach((m) => { o[m.key] = r[m.key]; });
+    if (r.creado) o.creado = r.creado;
+    return o;
+  }
+  function merge() {
+    const map = new Map();
+    shared.forEach((r) => map.set(nameKey(r.persona) + "|" + r.fecha, r));
+    local.forEach((r) => map.set(nameKey(r.persona) + "|" + r.fecha, r)); // lo del teléfono reemplaza
+    rows = [...map.values()];
+    $("local-count").textContent = local.length ? local.length + (local.length === 1 ? " medición guardada solo en este teléfono." : " mediciones guardadas solo en este teléfono.") : "Todo está en el archivo de la familia.";
+  }
+  saveRow = async (data, existing) => {
+    const id = existing && existing.origen === "local" ? existing.id : "l" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const row = cleanObj(data, id, "local");
+    const prev = local.slice();
+    local = local.filter((r) => !(nameKey(r.persona) === nameKey(row.persona) && r.fecha === row.fecha));
+    local.push(row);
+    if (!saveLocal()) { local = prev; throw new Error("storage"); }
+    merge(); render();
+  };
+  deleteRow = async (r) => {
+    if (r.origen !== "local") return;
+    const prev = local.slice();
+    local = local.filter((x) => x.id !== r.id);
+    if (!saveLocal()) { local = prev; throw new Error("storage"); }
+    merge(); render();
+  };
+
+  // Exportar / importar
+  function exportText() {
+    const all = rows.map(strip).sort((a, b) => a.persona.localeCompare(b.persona, "es") || a.fecha.localeCompare(b.fecha));
+    return JSON.stringify(all, null, 2);
+  }
+  $("btn-export").addEventListener("click", () => {
+    const ta = $("io-text"); ta.value = exportText(); $("io-box").hidden = false; $("io-mode").value = "export";
+    $("io-help").textContent = "Copia este texto y pégalo completo en el archivo datos.json de tu repositorio (o envíaselo a Claude). Así toda la familia verá estas mediciones.";
+    $("btn-io").textContent = "Copiar texto"; $("io-msg").hidden = true;
+  });
+  $("btn-import").addEventListener("click", () => {
+    const ta = $("io-text"); ta.value = ""; $("io-box").hidden = false; $("io-mode").value = "import";
+    $("io-help").textContent = "Pega aquí un texto copiado antes con \"Copiar datos\". Se agregará a lo que ya hay en este teléfono.";
+    $("btn-io").textContent = "Agregar mediciones"; $("io-msg").hidden = true; ta.focus();
+  });
+  function ioMsg(t, kind) { const m = $("io-msg"); m.textContent = t; m.className = "status " + kind; m.hidden = false; }
+  $("btn-io").addEventListener("click", async () => {
+    const ta = $("io-text");
+    if ($("io-mode").value === "export") {
+      try { await navigator.clipboard.writeText(ta.value); ioMsg("Copiado.", "ok"); }
+      catch (_) { ta.focus(); ta.select(); ioMsg("Texto seleccionado: mantén presionado y elige Copiar.", "ok"); }
+      return;
+    }
+    let arr;
+    try { arr = JSON.parse(ta.value); } catch (_) { ioMsg("Ese texto no tiene el formato correcto. Copia de nuevo todo el texto exportado.", "warn"); return; }
+    if (!Array.isArray(arr)) { ioMsg("Ese texto no tiene el formato correcto.", "warn"); return; }
+    const good = arr.map((d, i) => cleanObj(d, "l" + Date.now().toString(36) + i, "local")).filter(Boolean);
+    if (!good.length) { ioMsg("No se encontró ninguna medición válida en el texto.", "warn"); return; }
+    const prev = local.slice();
+    good.forEach((row) => {
+      local = local.filter((r) => !(nameKey(r.persona) === nameKey(row.persona) && r.fecha === row.fecha));
+      local.push(row);
+    });
+    if (!saveLocal()) { local = prev; ioMsg("No se pudo guardar en este teléfono.", "warn"); return; }
+    merge(); render();
+    ioMsg(good.length + (good.length === 1 ? " medición agregada." : " mediciones agregadas.") + (good.length < arr.length ? " Se omitieron " + (arr.length - good.length) + " con datos incompletos." : ""), "ok");
+  });
+  $("btn-close-io").addEventListener("click", () => { $("io-box").hidden = true; });
+
+  loadLocal(); merge(); render();
+  fetch("datos.json?v=" + Date.now(), { cache: "no-store" })
+    .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then((arr) => {
+      shared = Array.isArray(arr) ? arr.map((d, i) => cleanObj(d, "s" + i, "shared")).filter(Boolean) : [];
+      merge(); render();
+    })
+    .catch(() => {
+      if (location.protocol !== "file:") showBanner("No se pudo cargar el archivo de la familia (datos.json). Se muestran solo las mediciones de este teléfono.");
+      merge(); render();
+    });
+})();
+</script>
+</body>
+</html>
