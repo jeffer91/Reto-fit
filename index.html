@@ -263,6 +263,10 @@ a.big-btn { text-decoration: none; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .rrow.burro { background: #000000; border-color: #ff8a80; } }
 .arrow { width: 8px; height: 8px; border-right: 2px solid var(--muted); border-top: 2px solid var(--muted); transform: rotate(45deg); }
 .others-label { margin-top: 6px; }
+.hint-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 16px; }
+.pct-help { font-size: .78rem; text-align: right; }
+@media (max-width: 700px) { .pct-help { text-align: left; } }
+.pct-help b { color: var(--fg); font-weight: 600; }
 .pp-head { display: flex; align-items: center; gap: 14px; }
 .pp-head .avatar { width: 62px; height: 62px; font-size: 1.8rem; flex: none; }
 .pp-head h2 { font-size: 2rem; }
@@ -318,7 +322,10 @@ a.big-btn { text-decoration: none; }
         <h2 id="t-pod">Ranking</h2>
         <span class="label" id="home-note"></span>
       </div>
-      <p class="hint">Toca a alguien para ver cómo le fue.</p>
+      <div class="hint-row">
+        <p class="hint">Toca a alguien para ver cómo le fue.</p>
+        <p class="hint pct-help" id="pct-help"></p>
+      </div>
       <div id="podium"></div>
       <div id="rank-list" class="rank-list"></div>
     </section>
@@ -398,7 +405,7 @@ a.big-btn { text-decoration: none; }
         <button type="button" class="ghost" id="btn-sb-off" hidden>Cambiar proyecto</button>
       </div>
       <div id="set-msg" class="status" hidden></div>
-      <p class="hint">Versión 2026-11-08j · Supabase</p>
+      <p class="hint">Versión 2026-11-08k · Supabase</p>
 </div>
     </details>
     </div>
@@ -972,6 +979,11 @@ a.big-btn { text-decoration: none; }
   }
   function renderHome() {
     $("home-note").textContent = selLabel();
+    // Qué significa el % en pocas palabras
+    const ph = $("pct-help"); ph.textContent = "";
+    const NB = "\u00a0";
+    ph.append(el("b", null, "%"), document.createTextNode(" = avance " + (isAll() ? "desde su primer informe" : "vs. el mes anterior") + " (menos grasa, más músculo) · "),
+      el("b", null, "+10" + NB + "%"), document.createTextNode(" mejoró · "), el("b", null, "±10" + NB + "%"), document.createTextNode(" se" + NB + "mantuvo · "), el("b", null, "−10" + NB + "%"), document.createTextNode(" empeoró"));
     const pod = $("podium"); pod.textContent = "";
     const list = $("rank-list"); list.textContent = "";
     const { ranked, others } = ranking();
