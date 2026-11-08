@@ -1,12 +1,41 @@
 [
   {
     "persona": "Jefferson",
+    "fecha": "2026-10-04",
+    "puntuacion": 63,
+    "peso": 94.1,
+    "grasaPct": 34.7,
+    "masaGrasa": 32.65,
+    "masaMuscular": 57.31,
+    "imc": 31.4,
+    "altura": 173,
+    "genero": "Hombre",
+    "edad": 35
+  },
+  {
+    "persona": "Jefferson",
     "fecha": "2026-11-08",
     "puntuacion": 61,
     "peso": 90.75,
     "grasaPct": 35.3,
     "masaGrasa": 32.03,
     "masaMuscular": 54.81,
-    "imc": 30.3
+    "imc": 30.3,
+    "altura": 173,
+    "genero": "Hombre",
+    "edad": 35
+  },
+  {
+    "persona": "Kelly",
+    "fecha": "2026-10-04",
+    "puntuacion": 69,
+    "peso": 52.75,
+    "grasaPct": 33.3,
+    "masaGrasa": 17.57,
+    "masaMuscular": 32.81,
+    "imc": 21.7,
+    "altura": 156,
+    "genero": "Mujer",
+    "edad": 26
   }
 ]
