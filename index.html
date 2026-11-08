@@ -317,7 +317,7 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
         <button type="button" class="ghost" id="btn-sb-off" hidden>Cambiar proyecto</button>
       </div>
       <div id="set-msg" class="status" hidden></div>
-      <p class="hint">Versión 2026-11-08f · Supabase</p>
+      <p class="hint">Versión 2026-11-08g · Supabase</p>
 </div>
     </details>
   </div>
@@ -1016,7 +1016,7 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     const out = []; let bad = 0;
     const seen = new Set();
     cards.forEach((c) => {
-      if (c.failed) { bad++; setMsg(c.node.querySelector(".field"), "Este PDF no se pudo leer. Quita la tarjeta y vuelve a elegirlo.", "err"); return; }
+      if (c.failed) { bad++; setMsg(c.node.querySelector(".field"), "Este PDF no se pudo leer. Toca Reintentar o quita la tarjeta.", "err"); return; }
       let ok = true;
       const get = (k) => c.node.querySelector("[data-f=" + k + "]");
       const fld = (k) => get(k).closest(".field");
@@ -1135,7 +1135,11 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     return y && mi >= 0 ? y + "-" + pad2(mi + 1) : null;
   }
   async function fileToCanvas(file) {
-    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    // Se reconoce el PDF por su contenido ("%PDF-"), no por el nombre ni el tipo:
+    // al compartir desde WhatsApp o Drive el teléfono a veces no dice que es PDF
+    const sig = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+    const isPdf = String.fromCharCode.apply(null, sig) === "%PDF-";
+    if (!isPdf && !/^image\//.test(file.type || "")) throw new Error("noPdf");
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     if (isPdf) {
@@ -1300,6 +1304,49 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     return Object.keys(flags).length + (nameFromFile(file.name) ? 0 : 1) + (card.fecha ? 0 : 1);
   }
 
+  // Lee un PDF; si falla, reintenta una vez sola y, si vuelve a fallar, deja un botón "Reintentar"
+  async function processCard(f, c, head) {
+    c.reading = true; c.failed = false; c.node.classList.add("reading");
+    const old = c.node.querySelector(".retry"); if (old) old.remove();
+    const first = c.node.querySelector(".field");
+    setMsg(first, "", "");
+    onProgress = (m) => {
+      if (m.status === "zona") status("ocr-status", head + ": parte " + m.n + " de " + ZONES.length + "…", "info");
+      else if (/loading|initializ/i.test(m.status || "")) status("ocr-status", head + ": preparando el lector" + (m.progress ? " " + Math.round(m.progress * 100) + " %" : "") + "… (solo la primera vez)", "info");
+    };
+    let result = null, lastErr = null;
+    for (let attempt = 0; attempt < 2 && !result; attempt++) {
+      try {
+        const v = await withWatchdog(readFile(f, c));
+        result = cards.includes(c) && fillCard(c, f, v) ? "warn" : "ok";
+      } catch (err) {
+        lastErr = err;
+        debug.error = String((err && (err.stack || err.message)) || err);
+        if (err && err.message === "noPdf") break;
+        await resetWorker();
+        if (attempt === 0) status("ocr-status", head + ": hubo un problema, reintentando…", "info");
+      }
+    }
+    onProgress = null;
+    c.reading = false; c.node.classList.remove("reading");
+    if (result) return result;
+    c.failed = true;
+    const why = lastErr && lastErr.message === "noPdf" ? "Este archivo no es un PDF del informe. Quita la tarjeta y elige el PDF correcto."
+      : lastErr && lastErr.message === "timeout" ? "La lectura tardó demasiado (señal débil o teléfono ocupado). Toca Reintentar."
+      : "No se pudo leer este PDF. Toca Reintentar.";
+    setMsg(first, why, "err");
+    if (!(lastErr && lastErr.message === "noPdf")) {
+      const btn = el("button", "ghost retry", "Reintentar lectura"); btn.type = "button";
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        const r = await processCard(f, c, "Leyendo " + (nameFromFile(f.name) || "informe"));
+        status("ocr-status", r === "fail" ? "Todavía no se pudo leer. Prueba con wifi o vuelve a descargar el PDF." : "Informe leído. Luego toca \"Guardar todos\".", r === "fail" ? "warn" : "info");
+      });
+      c.node.querySelector(".card-top").after(btn);
+    }
+    return "fail";
+  }
+
   $("file-in").addEventListener("change", async (e) => {
     const files = [...e.target.files];
     e.target.value = "";
@@ -1319,26 +1366,13 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
       if (!cards.includes(c)) continue;
       const head = "Leyendo informe " + i + " de " + jobs.length;
       status("ocr-status", head + "…", "info");
-      onProgress = (m) => {
-        if (m.status === "zona") status("ocr-status", head + ": parte " + m.n + " de " + ZONES.length + "…", "info");
-        else if (/loading|initializ/i.test(m.status || "")) status("ocr-status", head + ": preparando el lector" + (m.progress ? " " + Math.round(m.progress * 100) + " %" : "") + "… (solo la primera vez)", "info");
-      };
-      try {
-        const v = await withWatchdog(readFile(f, c));
-        if (cards.includes(c) && fillCard(c, f, v)) warn++;
-      } catch (err) {
-        fail++; c.failed = true;
-        if (err && err.message === "timeout") await resetWorker();
-        setMsg(c.node.querySelector(".field"), err && err.message === "timeout"
-          ? "La lectura tardó demasiado. Quita esta tarjeta y vuelve a elegir el PDF con mejor señal."
-          : "No se pudo leer este PDF. Quita esta tarjeta y vuelve a elegirlo.", "err");
-      }
-      onProgress = null;
-      c.reading = false; c.node.classList.remove("reading");
+      const r = await processCard(f, c, head);
+      if (r === "warn") warn++; else if (r === "fail") fail++;
     }
-    const parts = [jobs.length === 1 ? "Informe leído." : jobs.length + " informes leídos."];
+    const okN = jobs.length - fail;
+    const parts = okN ? [okN === 1 ? "1 informe leído." : okN + " informes leídos."] : [];
     if (warn) parts.push("Revisa los campos en amarillo.");
-    if (fail) parts.push(fail === 1 ? "1 archivo no se pudo leer (revisa tu señal de internet e inténtalo otra vez)." : fail + " archivos no se pudieron leer (revisa tu señal de internet e inténtalo otra vez).");
+    if (fail) parts.push(fail === 1 ? "1 archivo no se pudo leer: toca \"Reintentar lectura\" en su tarjeta." : fail + " archivos no se pudieron leer: toca \"Reintentar lectura\" en cada tarjeta.");
     parts.push("Luego toca \"Guardar todos\".");
     status("ocr-status", parts.join(" "), fail ? "warn" : "info");
   });
