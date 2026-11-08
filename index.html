@@ -306,7 +306,7 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
         <button type="button" class="ghost" id="btn-pin-off" hidden>Quitar PIN de este teléfono</button>
       </div>
       <div id="set-msg" class="status" hidden></div>
-      <p class="hint">Versión 2026-11-08 · Supabase</p>
+      <p class="hint">Versión 2026-11-08b · Supabase</p>
     </div>
   </section>
 </div>
@@ -983,15 +983,37 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     });
     return loaded[src];
   }
-  let workerP = null;
+  // Ancho de trabajo: 1654 px (200 ppp) lee igual de bien que 2480 px y es más del doble de rápido en el teléfono
+  const RENDER_W = 1654;
+  let workerP = null, onProgress = null, lastTick = 0;
   function getWorker() {
     if (!workerP) workerP = (async () => {
       await loadScript(LIBS.tess);
-      const w = await Tesseract.createWorker("spa");
+      const w = await Tesseract.createWorker("spa", 1, {
+        logger: (m) => { lastTick = Date.now(); if (onProgress) onProgress(m); },
+      });
       await w.setParameters({ tessedit_pageseg_mode: "6" });
       return w;
     })().catch((e) => { workerP = null; throw e; });
     return workerP;
+  }
+  async function resetWorker() {
+    const p = workerP; workerP = null;
+    try { const w = await p; await w.terminate(); } catch (_) {}
+  }
+  // Corta la lectura si pasan 60 s sin avance (señal débil o teléfono sin memoria)
+  function withWatchdog(promise) {
+    lastTick = Date.now();
+    return new Promise((res, rej) => {
+      const t = setInterval(() => { if (Date.now() - lastTick > 60000) { clearInterval(t); rej(new Error("timeout")); } }, 2000);
+      promise.then((v) => { clearInterval(t); res(v); }, (e) => { clearInterval(t); rej(e); });
+    });
+  }
+  function monthFromFile(fn) {
+    const t = fn.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const y = (t.match(/(20\d{2})/) || [])[1];
+    const mi = MONTHS.findIndex((m) => t.includes(m.normalize("NFD").replace(/[\u0300-\u036f]/g, "")));
+    return y && mi >= 0 ? y + "-" + pad2(mi + 1) : null;
   }
   async function fileToCanvas(file) {
     const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
@@ -1003,7 +1025,7 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
       const doc = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
       try {
         const page = await doc.getPage(1);
-        const vp = page.getViewport({ scale: 2480 / page.getViewport({ scale: 1 }).width });
+        const vp = page.getViewport({ scale: RENDER_W / page.getViewport({ scale: 1 }).width });
         canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
         ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         await page.render({ canvasContext: ctx, viewport: vp }).promise;
@@ -1012,7 +1034,7 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
       const url = URL.createObjectURL(file);
       try {
         const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("imagen")); i.src = url; });
-        canvas.width = 2480; canvas.height = Math.round(img.naturalHeight * 2480 / img.naturalWidth);
+        canvas.width = RENDER_W; canvas.height = Math.round(img.naturalHeight * RENDER_W / img.naturalWidth);
         ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       } finally { URL.revokeObjectURL(url); }
@@ -1105,14 +1127,19 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     const det = card.node.querySelector("details");
     det.querySelector("img").src = prev.toDataURL("image/jpeg", 0.8);
     det.hidden = false;
+    lastTick = Date.now();
     const w = await getWorker();
-    let text = "";
-    for (const z of ZONES) text += (await w.recognize(crop(canvas, ...z))).data.text + "\n";
+    let text = "", k = 0;
+    for (const z of ZONES) {
+      if (onProgress) onProgress({ status: "zona", n: ++k });
+      text += (await w.recognize(crop(canvas, ...z))).data.text + "\n";
+      lastTick = Date.now();
+    }
     debug.last = text;
     let v = parseReport(text);
     const score = await readScore(w, canvas);
     if (score != null) v.puntuacion = score;
-    if (METRICS.some((m) => v[m.key] == null) || !v.fecha) {
+    if (METRICS.some((m) => v[m.key] == null)) {
       const full = parseReport((await w.recognize(canvas)).data.text);
       v = { ...full, ...v };
     }
@@ -1140,7 +1167,8 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     if (card.fecha) {
       const s = get("mes"); fillMonthSelect(s, card.fecha.slice(0, 7));
       setMsg(fld("mes"), "Informe del " + fmtDate(card.fecha) + ".", "");
-    } else setMsg(fld("mes"), "No se leyó la fecha: elige el mes.", "chk");
+    } else if (monthFromFile(file.name)) setMsg(fld("mes"), "Mes tomado del nombre del archivo: confirma.", "chk");
+    else setMsg(fld("mes"), "No se leyó la fecha: elige el mes.", "chk");
     const flags = checks(v);
     METRICS.forEach((m) => {
       if (v[m.key] != null) get(m.key).value = String(v[m.key]);
@@ -1154,24 +1182,39 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     e.target.value = "";
     if (!files.length) return;
     status("save-status", "");
-    const jobs = files.map((f) => { const c = makeCard(f.name); c.reading = true; c.node.classList.add("reading"); return { f, c }; });
+    const jobs = files.map((f) => {
+      const c = makeCard(f.name); c.reading = true; c.node.classList.add("reading");
+      const nm = nameFromFile(f.name), ym = monthFromFile(f.name);
+      if (nm) c.node.querySelector("[data-f=persona]").value = nm;
+      if (ym && ym <= curMonth()) fillMonthSelect(c.node.querySelector("[data-f=mes]"), ym);
+      return { f, c };
+    });
     let i = 0, warn = 0, fail = 0;
     for (const { f, c } of jobs) {
       i++;
       if (!cards.includes(c)) continue;
-      status("ocr-status", "Leyendo informe " + i + " de " + jobs.length + "…" + (!workerP ? " La primera vez tarda un poco más." : ""), "info");
+      const head = "Leyendo informe " + i + " de " + jobs.length;
+      status("ocr-status", head + "…", "info");
+      onProgress = (m) => {
+        if (m.status === "zona") status("ocr-status", head + ": parte " + m.n + " de " + ZONES.length + "…", "info");
+        else if (/loading|initializ/i.test(m.status || "")) status("ocr-status", head + ": preparando el lector" + (m.progress ? " " + Math.round(m.progress * 100) + " %" : "") + "… (solo la primera vez)", "info");
+      };
       try {
-        const v = await readFile(f, c);
+        const v = await withWatchdog(readFile(f, c));
         if (cards.includes(c) && fillCard(c, f, v)) warn++;
       } catch (err) {
         fail++;
-        setMsg(c.node.querySelector(".field"), "No se pudo leer este archivo. Escribe los datos a mano.", "chk");
+        if (err && err.message === "timeout") await resetWorker();
+        setMsg(c.node.querySelector(".field"), err && err.message === "timeout"
+          ? "La lectura tardó demasiado. Vuelve a elegir el archivo con mejor señal, o escribe los datos."
+          : "No se pudo leer este archivo. Escribe los datos a mano.", "chk");
       }
+      onProgress = null;
       c.reading = false; c.node.classList.remove("reading");
     }
     const parts = [jobs.length === 1 ? "Informe leído." : jobs.length + " informes leídos."];
     if (warn) parts.push("Revisa los campos en amarillo.");
-    if (fail) parts.push(fail === 1 ? "1 archivo no se pudo leer (revisa tu conexión a internet)." : fail + " archivos no se pudieron leer (revisa tu conexión a internet).");
+    if (fail) parts.push(fail === 1 ? "1 archivo no se pudo leer (revisa tu señal de internet e inténtalo otra vez)." : fail + " archivos no se pudieron leer (revisa tu señal de internet e inténtalo otra vez).");
     parts.push("Luego toca \"Guardar todos\".");
     status("ocr-status", parts.join(" "), fail ? "warn" : "info");
   });
