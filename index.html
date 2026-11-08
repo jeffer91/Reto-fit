@@ -250,8 +250,16 @@ a.big-btn { text-decoration: none; }
 .rrow .avatar { width: 36px; height: 36px; font-size: 1.05rem; }
 .rrow .p-main b { font-size: 1rem; }
 .rrow .pc { font-size: 1.15rem; }
-.rrow.burro { border-color: var(--bad); }
-.rrow.burro .pos { font-size: 1.6rem; }
+/* Último lugar: fondo negro con el cerdito */
+.rrow.burro { background: #111418; border-color: #111418; color: #ffffff; }
+.rrow.burro:hover { background: #000000; }
+.rrow.burro .pos { font-size: 1.8rem; }
+.rrow.burro .avatar { background: #2a2f36; color: #ffffff; }
+.rrow.burro .p-sub { color: #ff8a80; font-weight: 600; }
+.rrow.burro .pc { color: #ff8a80; }
+.rrow.burro .arrow { border-color: #ffffff; }
+:root[data-theme="dark"] .rrow.burro { background: #000000; border-color: #ff8a80; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .rrow.burro { background: #000000; border-color: #ff8a80; } }
 .arrow { width: 8px; height: 8px; border-right: 2px solid var(--muted); border-top: 2px solid var(--muted); transform: rotate(45deg); }
 .others-label { margin-top: 6px; }
 .pp-head { display: flex; align-items: center; gap: 14px; }
@@ -370,7 +378,7 @@ a.big-btn { text-decoration: none; }
         <button type="button" class="ghost" id="btn-sb-off" hidden>Cambiar proyecto</button>
       </div>
       <div id="set-msg" class="status" hidden></div>
-      <p class="hint">Versión 2026-11-08h · Supabase</p>
+      <p class="hint">Versión 2026-11-08i · Supabase</p>
 </div>
     </details>
     </div>
@@ -810,10 +818,10 @@ a.big-btn { text-decoration: none; }
     return body;
   }
 
-  // ---------- Ranking: podio, lista y burrito ----------
+  // ---------- Ranking: podio, lista y el último (cerdito) ----------
   const slugOf = (p) => p.key.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "persona";
   const MEDAL = { 1: "🥇", 2: "🥈", 3: "🥉" };
-  const BURRO = "🫏";
+  const BURRO = "🐷";
   // Por mes: avance vs su informe anterior (lo que decide ★/$1/$5). En "Todos": avance desde su primer informe.
   function ranking() {
     const ranked = [], others = [];
@@ -853,7 +861,7 @@ a.big-btn { text-decoration: none; }
     b.appendChild(el("span", "pos", x.pos ? (x.burro ? BURRO : String(x.pos)) : "–"));
     b.appendChild(el("span", "avatar", x.p.name.charAt(0).toUpperCase()));
     const main = el("span", "p-main");
-    main.append(el("b", null, x.p.name), el("span", "p-sub", (x.burro ? "El burrito · " : "") + subLine(x)));
+    main.append(el("b", null, x.p.name), el("span", "p-sub", (x.burro ? "Último lugar · " : "") + subLine(x)));
     b.appendChild(main);
     b.appendChild(x.pos ? el("span", "pc " + clsOf(x.score, 2), fmtPct(x.score)) : el("span", "badge b-none", "Sin ranking"));
     b.appendChild(el("span", "arrow", ""));
@@ -898,7 +906,7 @@ a.big-btn { text-decoration: none; }
     const me = ranked.find((x) => x.p.key === p.key);
     const place = el("div", "pp-place");
     if (me && useAll === isAll()) {
-      const lbl = me.burro ? BURRO + " El burrito (último lugar)" : (MEDAL[me.pos] ? MEDAL[me.pos] + " " : "") + me.pos + ".º lugar";
+      const lbl = me.burro ? BURRO + " Último lugar" : (MEDAL[me.pos] ? MEDAL[me.pos] + " " : "") + me.pos + ".º lugar";
       place.append(el("b", null, lbl), document.createTextNode(" de " + ranked.length + " · " + selLabel().toLowerCase() + " · " + fmtPct(me.score)));
     } else place.textContent = (useAll && !isAll() ? "Sin informe hasta " + monthName(selMonth).toLowerCase() + " · mostrando todo" : "Sin ranking en " + selLabel().toLowerCase());
     hm.appendChild(place);
