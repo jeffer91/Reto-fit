@@ -292,7 +292,7 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
         <button type="button" class="ghost" id="btn-sb-off" hidden>Cambiar proyecto</button>
       </div>
       <div id="set-msg" class="status" hidden></div>
-      <p class="hint">Versión 2026-11-08d · Supabase</p>
+      <p class="hint">Versión 2026-11-08e · Supabase</p>
     </div>
   </section>
 </div>
@@ -479,18 +479,59 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
 
   // ================= Render =================
   const allMonths = () => [...new Set(rows.map((r) => r.mes))].sort();
+  // "Todos los meses": vista acumulada
+  const ALL = "all";
+  const isAll = () => selMonth === ALL;
+  const upTo = () => isAll() ? null : selMonth;
+  const selLabel = () => isAll() ? "Todos los meses" : monthName(selMonth);
   function renderMonthSel() {
     const ms = allMonths();
     const opts = new Set(ms); opts.add(curMonth());
-    if (!selMonth || !opts.has(selMonth)) selMonth = ms.length ? ms[ms.length - 1] : curMonth();
+    if (!selMonth || (selMonth !== ALL && !opts.has(selMonth))) selMonth = ms.length ? ms[ms.length - 1] : curMonth();
     const sel = $("month-sel"); sel.textContent = "";
+    const oa = el("option", null, "Todos los meses (acumulado)"); oa.value = ALL; oa.selected = isAll(); sel.appendChild(oa);
     [...opts].sort().reverse().forEach((ym) => {
       const o = el("option", null, monthName(ym) + (ms.includes(ym) ? "" : " · sin informes")); o.value = ym; o.selected = ym === selMonth; sel.appendChild(o);
     });
   }
 
+  // Acumulado por persona en todos los meses
+  function totals(p) {
+    const t = { stars: 0, pay: 0, debt: 0, months: [] };
+    allMonths().forEach((ym) => {
+      const v = verdict(p.list, ym);
+      if (v.kind === "none") return;
+      const paid = v.pay > 0 && isPaid(p.name, ym);
+      if (v.star) t.stars++;
+      t.pay += v.pay; if (!paid) t.debt += v.pay;
+      t.months.push({ ym, v, paid });
+    });
+    return t;
+  }
+  function renderVerdictsAll() {
+    const area = $("verdict-area");
+    const ps = people(null);
+    if (!ps.length) { area.appendChild(el("div", "empty", "Sube informes para ver el acumulado de estrellas y pagos.")); return; }
+    const list = ps.map((p) => ({ p, t: totals(p) })).sort((a, b) => b.t.stars - a.t.stars || a.t.pay - b.t.pay || a.p.name.localeCompare(b.p.name, "es"));
+    const ul = el("ul", "verdicts");
+    let stars = 0, pay = 0;
+    list.forEach(({ p, t }) => {
+      stars += t.stars; pay += t.pay;
+      const li = el("li"); const d = el("div");
+      const n = p.list.length;
+      d.append(el("b", null, p.name), el("span", "why", n + (n === 1 ? " informe" : " informes") + " · " + (t.pay ? "pagos $" + t.pay + (t.debt ? " (debe $" + t.debt + ")" : " (al día)") : "sin pagos")));
+      li.append(d, el("span", "badge b-star", "★ " + t.stars));
+      ul.appendChild(li);
+    });
+    area.appendChild(ul);
+    const sum = el("div", "sum");
+    const a = el("div"); a.append(el("div", "label", "Total de pagos (todos los meses)"), el("div", "big", "$" + pay));
+    const b = el("div"); b.style.textAlign = "right"; b.append(el("div", "label", "Estrellas en total"), el("div", "big gold", "★ " + stars));
+    sum.append(a, b); area.appendChild(sum);
+  }
   function renderVerdicts() {
-    $("rules-month").textContent = monthName(selMonth);
+    $("rules-month").textContent = selLabel();
+    if (isAll()) { $("verdict-area").textContent = ""; renderVerdictsAll(); return; }
     const area = $("verdict-area"); area.textContent = "";
     const ps = people(selMonth);
     if (!ps.length) { area.appendChild(el("div", "empty", "Sube los informes del mes para ver quién gana estrella y quién paga.")); return; }
@@ -569,8 +610,70 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     if (free.length) L.push("🙌 No pagan por más de " + RULES.exentoSobre + " puntos: " + free.map((x) => x.p.name).join(", "));
     return L.join("\n");
   }
+  function copyButton(area, getText) {
+    const cb = el("button", "ghost paycopy", "Copiar lista para WhatsApp"); cb.type = "button";
+    const msg = el("div", "status"); msg.hidden = true; msg.style.marginTop = "8px";
+    cb.addEventListener("click", async () => {
+      const text = getText();
+      try { await navigator.clipboard.writeText(text); msg.className = "status ok"; msg.textContent = "Lista copiada. Pégala en el grupo de la familia."; }
+      catch (_) {
+        msg.className = "status info"; msg.textContent = "";
+        const ta = el("textarea"); ta.value = text; ta.readOnly = true; ta.style.minHeight = "160px";
+        msg.append(el("div", null, "Mantén presionado el texto y elige Copiar:"), ta);
+        setTimeout(() => { ta.focus(); ta.select(); }, 0);
+      }
+      msg.hidden = false;
+    });
+    area.append(cb, msg);
+  }
+  function renderPagosAll() {
+    const area = $("pay-area");
+    const list = people(null).map((p) => ({ p, t: totals(p) })).filter((x) => x.t.pay > 0)
+      .sort((a, b) => b.t.debt - a.t.debt || b.t.pay - a.t.pay || a.p.name.localeCompare(b.p.name, "es"));
+    if (!list.length) { area.appendChild(el("div", "empty", "Nadie ha tenido que pagar todavía.")); return; }
+    const ul = el("ul", "verdicts");
+    list.forEach(({ p, t }) => {
+      const li = el("li"); const d = el("div");
+      const det = t.months.filter((m) => m.v.pay > 0).map((m) => monthShort(m.ym) + ": $" + m.v.pay + (m.paid ? " ✓" : "")).join(" · ");
+      d.append(el("b", null, p.name), el("span", "why", det));
+      const right = el("div", "payrow-right");
+      right.appendChild(el("span", "badge " + (t.debt ? "b-worse" : "b-free"), t.debt ? "Debe $" + t.debt : "Al día"));
+      if (canWrite() && t.debt) {
+        const b = el("button", "paybtn", "Marcar todo pagado"); b.type = "button";
+        b.addEventListener("click", async () => {
+          b.disabled = true;
+          try {
+            for (const m of t.months.filter((x) => x.v.pay > 0 && !x.paid)) {
+              await rpc("marcar_pago", { p_pin: pin, p_persona: p.name, p_mes: m.ym, p_monto: m.v.pay, p_pagado: true });
+              pagos.set(nameKey(p.name) + "|" + m.ym, { pagado: true, monto: m.v.pay });
+            }
+            showBanner("");
+          } catch (e) { showBanner("No se pudo marcar el pago. " + sbWhy(e)); }
+          renderPagos(); renderTri(); renderVerdicts();
+        });
+        right.appendChild(b);
+      }
+      li.append(d, right); ul.appendChild(li);
+    });
+    area.appendChild(ul);
+    const tot = list.reduce((s, x) => s + x.t.pay, 0), pend = list.reduce((s, x) => s + x.t.debt, 0);
+    const sum = el("div", "paysum");
+    [["Pendiente", "$" + pend, pend ? "bad" : ""], ["Pagado", "$" + (tot - pend), tot - pend ? "good" : ""], ["Total", "$" + tot, ""]].forEach(([l, val, c]) => {
+      const x = el("div"); x.append(el("div", "label", l), el("div", "big " + c, val)); sum.appendChild(x);
+    });
+    area.appendChild(sum);
+    copyButton(area, () => {
+      const L = ["Reto Fit Familia – Acumulado de todos los meses", "", "💰 Pagos:"];
+      list.forEach(({ p, t }) => L.push("• " + p.name + ": total $" + t.pay + (t.debt ? " (debe $" + t.debt + ")" : " ✅ al día")));
+      L.push("Total: $" + tot + (pend ? " (pendiente $" + pend + ")" : ""));
+      const st = people(null).map((p) => ({ p, s: totals(p).stars })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s);
+      if (st.length) L.push("", "⭐ Estrellas: " + st.map((x) => x.p.name + " " + x.s).join(", "));
+      return L.join("\n");
+    });
+  }
   function renderPagos() {
-    $("pay-month").textContent = monthName(selMonth);
+    $("pay-month").textContent = selLabel();
+    if (isAll()) { $("pay-area").textContent = ""; renderPagosAll(); return; }
     const area = $("pay-area"); area.textContent = "";
     const ps = people(selMonth);
     const vs = ps.map((p) => ({ p, v: verdict(p.list, selMonth) }));
@@ -624,20 +727,7 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     if (first.length) notes.push("Primer informe, no pagan: " + first.map((x) => x.p.name).join(", ") + ".");
     if (none.length) notes.push("Sin informe este mes: " + none.map((x) => x.p.name).join(", ") + ".");
     notes.forEach((t) => area.appendChild(el("p", "hint paynote", t)));
-    const cb = el("button", "ghost paycopy", "Copiar lista para WhatsApp"); cb.type = "button";
-    const msg = el("div", "status"); msg.hidden = true; msg.style.marginTop = "8px";
-    cb.addEventListener("click", async () => {
-      const text = payText(selMonth, payers, stars, free);
-      try { await navigator.clipboard.writeText(text); msg.className = "status ok"; msg.textContent = "Lista copiada. Pégala en el grupo de la familia."; }
-      catch (_) {
-        msg.className = "status info"; msg.textContent = "";
-        const ta = el("textarea"); ta.value = text; ta.readOnly = true; ta.style.minHeight = "160px";
-        msg.append(el("div", null, "Mantén presionado el texto y elige Copiar:"), ta);
-        setTimeout(() => { ta.focus(); ta.select(); }, 0);
-      }
-      msg.hidden = false;
-    });
-    area.append(cb, msg);
+    copyButton(area, () => payText(selMonth, payers, stars, free));
   }
 
   const TOTAL = { key: "total", short: "Avance total" };
@@ -650,8 +740,8 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
       c.appendChild(b);
     });
     const area = $("rank-area"); area.textContent = "";
-    const ps = people(selMonth);
-    $("rank-hint").textContent = "Cambio desde el primer informe de cada persona hasta " + monthName(selMonth).toLowerCase() + ".";
+    const ps = people(upTo());
+    $("rank-hint").textContent = "Cambio desde el primer informe de cada persona hasta " + (isAll() ? "el último" : monthName(selMonth).toLowerCase()) + ".";
     if (!ps.length) { area.appendChild(el("div", "empty", "Sube el primer informe para empezar.")); $("rank-note").textContent = ""; return; }
     const isTotal = rankMetric === "total";
     const m = METRICS.find((x) => x.key === rankMetric);
@@ -686,7 +776,7 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
 
   function renderDetail() {
     const area = $("detail-area"); area.textContent = "";
-    const ps = people(selMonth);
+    const ps = people(upTo());
     if (!ps.length) { area.appendChild(el("div", "empty", "Aquí verás la evolución de cada miembro de la familia.")); return; }
     if (!selected || !ps.some((p) => p.key === selected)) selected = ps[0].key;
     const p = ps.find((x) => x.key === selected);
