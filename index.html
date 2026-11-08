@@ -99,6 +99,7 @@ select, input, textarea {
 .field .msg { font-size: .74rem; color: var(--muted); }
 .field.err input, .field.err select { border-color: var(--bad); }
 .field.err .msg { color: var(--bad); }
+.field input[readonly], .field select:disabled { background: var(--bg); color: var(--fg); opacity: 1; border-color: transparent; }
 .field.chk input, .field.chk select { border-color: var(--warn); background: var(--warn-soft); }
 .field.chk .msg { color: var(--warn); }
 details summary { cursor: pointer; font-weight: 600; font-size: .85rem; color: var(--accent); }
@@ -209,12 +210,11 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
   <section aria-labelledby="t-up">
     <h2 id="t-up">Subir informes</h2>
     <div class="panel">
-      <p class="hint">Elige uno o varios PDF (o fotos) del informe de la báscula. La app lee los valores sola; revisa cada tarjeta y guarda.</p>
+      <p class="hint">Elige uno o varios PDF del informe de la báscula. La app lee los valores directo del PDF; revisa cada tarjeta y toca "Guardar todos".</p>
       <div class="row-btns">
         <label class="primary" for="file-in">Elegir informes</label>
-        <button type="button" class="ghost" id="btn-manual">Escribir a mano</button>
       </div>
-      <input id="file-in" type="file" accept="application/pdf,image/*" multiple class="sr-only">
+      <input id="file-in" type="file" accept="application/pdf,.pdf" multiple class="sr-only">
       <div id="ocr-status" class="status info" hidden></div>
       <div id="cards" class="cards"></div>
       <div id="save-bar" class="row-btns" hidden>
@@ -292,7 +292,7 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
         <button type="button" class="ghost" id="btn-sb-off" hidden>Cambiar proyecto</button>
       </div>
       <div id="set-msg" class="status" hidden></div>
-      <p class="hint">Versión 2026-11-08c · Supabase</p>
+      <p class="hint">Versión 2026-11-08d · Supabase</p>
     </div>
   </section>
 </div>
@@ -838,7 +838,7 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     const id = "c" + Math.random().toString(36).slice(2, 9);
     const node = el("div", "card");
     const top = el("div", "card-top");
-    top.appendChild(el("span", "fname", fileName || "Informe escrito a mano"));
+    top.appendChild(el("span", "fname", fileName || "Informe"));
     const x = el("button", "x", "Quitar"); x.type = "button";
     x.addEventListener("click", () => removeCard(id));
     top.appendChild(x);
@@ -886,7 +886,6 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     cards = cards.filter((c) => { if (c.id === id) { c.node.remove(); return false; } return true; });
     if (!cards.length) $("save-bar").hidden = true;
   }
-  $("btn-manual").addEventListener("click", () => { const c = makeCard(null); c.node.querySelector("[data-f=persona]").focus(); });
   $("btn-clear").addEventListener("click", () => { cards.slice().forEach((c) => removeCard(c.id)); status("save-status", ""); status("ocr-status", ""); });
 
   $("btn-save-all").addEventListener("click", async () => {
@@ -895,6 +894,7 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     const out = []; let bad = 0;
     const seen = new Set();
     cards.forEach((c) => {
+      if (c.failed) { bad++; setMsg(c.node.querySelector(".field"), "Este PDF no se pudo leer. Quita la tarjeta y vuelve a elegirlo.", "err"); return; }
       let ok = true;
       const get = (k) => c.node.querySelector("[data-f=" + k + "]");
       const fld = (k) => get(k).closest(".field");
@@ -1171,6 +1171,10 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
       if (v[m.key] != null) get(m.key).value = String(v[m.key]);
       if (flags[m.key]) setMsg(fld(m.key), flags[m.key], "chk");
     });
+    // Solo queda editable lo que el PDF no trae o no cuadra; lo demás sale tal cual del PDF
+    get("persona").readOnly = !!nameFromFile(file.name);
+    get("mes").disabled = !!card.fecha;
+    METRICS.forEach((m) => { get(m.key).readOnly = v[m.key] != null && !flags[m.key]; });
     return Object.keys(flags).length + (nameFromFile(file.name) ? 0 : 1) + (card.fecha ? 0 : 1);
   }
 
@@ -1181,6 +1185,7 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     status("save-status", "");
     const jobs = files.map((f) => {
       const c = makeCard(f.name); c.reading = true; c.node.classList.add("reading");
+      c.node.querySelectorAll("[data-f]").forEach((x) => { if (x.tagName === "SELECT") x.disabled = true; else x.readOnly = true; });
       const nm = nameFromFile(f.name), ym = monthFromFile(f.name);
       if (nm) c.node.querySelector("[data-f=persona]").value = nm;
       if (ym && ym <= curMonth()) fillMonthSelect(c.node.querySelector("[data-f=mes]"), ym);
@@ -1200,11 +1205,11 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
         const v = await withWatchdog(readFile(f, c));
         if (cards.includes(c) && fillCard(c, f, v)) warn++;
       } catch (err) {
-        fail++;
+        fail++; c.failed = true;
         if (err && err.message === "timeout") await resetWorker();
         setMsg(c.node.querySelector(".field"), err && err.message === "timeout"
-          ? "La lectura tardó demasiado. Vuelve a elegir el archivo con mejor señal, o escribe los datos."
-          : "No se pudo leer este archivo. Escribe los datos a mano.", "chk");
+          ? "La lectura tardó demasiado. Quita esta tarjeta y vuelve a elegir el PDF con mejor señal."
+          : "No se pudo leer este PDF. Quita esta tarjeta y vuelve a elegirlo.", "err");
       }
       onProgress = null;
       c.reading = false; c.node.classList.remove("reading");
