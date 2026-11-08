@@ -25,8 +25,10 @@ create table if not exists public.informes (
   genero        text,
   edad          integer,
   creado        timestamptz not null default now(),
+  oculto        boolean not null default false,   -- borrar = ocultar (se puede recuperar)
   unique (persona_key, mes)
 );
+alter table public.informes add column if not exists oculto boolean not null default false;
 
 create table if not exists public.pagos (
   id          bigint generated always as identity primary key,
@@ -53,7 +55,7 @@ alter table public.pagos       enable row level security;
 alter table public.reto_config enable row level security;
 
 drop policy if exists "ver informes" on public.informes;
-create policy "ver informes" on public.informes for select to anon, authenticated using (true);
+create policy "ver informes" on public.informes for select to anon, authenticated using (not oculto);
 drop policy if exists "ver pagos" on public.pagos;
 create policy "ver pagos" on public.pagos for select to anon, authenticated using (true);
 
@@ -117,6 +119,7 @@ begin
       altura = coalesce(excluded.altura, informes.altura),
       genero = coalesce(excluded.genero, informes.genero),
       edad = coalesce(excluded.edad, informes.edad),
+      oculto = false,
       creado = now();
     n := n + 1;
   end loop;
@@ -131,7 +134,8 @@ begin
   if not public.reto_pin_ok(p_pin) then
     raise exception 'PIN incorrecto';
   end if;
-  delete from public.informes where persona_key = public.reto_key(p_persona) and mes = p_mes;
+  update public.informes set oculto = true
+   where persona_key = public.reto_key(p_persona) and mes = p_mes and not oculto;
   get diagnostics n = row_count;
   return n;
 end;
