@@ -10,8 +10,10 @@ peso, masa muscular, IMC, masa grasa, % de grasa y puntuación corporal.
 1. Toca **Elegir informes** y selecciona uno o varios PDF (o fotos) del informe.
 2. La app lee los valores sola. Revisa cada tarjeta (lo dudoso sale en amarillo) y toca **Guardar todos**.
 3. Elige el **mes** arriba para ver el reglamento de ese mes, la tabla de todos los meses y el % de avance.
-4. Para que toda la familia lo vea, toca **Copiar datos** y pega el texto en [`datos.json`](datos.json)
-   (desde GitHub: abrir el archivo → lápiz ✏️ → pegar → *Commit changes*).
+4. **Guardar directo en GitHub:** en la sección *Guardar en GitHub* conecta el teléfono una sola vez
+   con una clave (fine-grained token solo para Reto-fit, permiso *Contents: Read and write*).
+   Desde ahí, "Guardar todos" escribe directo en [`datos.json`](datos.json) en la rama `main`,
+   sin crear ramas, y toda la familia ve los informes al instante.
 
 ## Reglamento
 

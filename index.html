@@ -167,6 +167,8 @@ th.sel { color: var(--accent); }
 .confirm .yes { background: var(--bad); color: var(--surface); }
 .confirm .no { background: var(--bg); color: var(--fg); }
 .tag { font-size: .7rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 2px 7px; border-radius: 999px; }
+.steps { margin: 10px 0 8px; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: .88rem; }
+.steps a { color: var(--accent); word-break: break-all; }
 textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background: var(--bg); min-height: 180px; resize: vertical; }
 @media (max-width: 480px) {
   .metrics, .grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -245,23 +247,52 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
   </section>
 
   <section aria-labelledby="t-io">
-    <h2 id="t-io">Compartir con la familia</h2>
+    <h2 id="t-io">Guardar en GitHub</h2>
     <div class="panel">
-      <p class="hint" id="local-count"></p>
-      <p class="hint">Lo que guardas aquí se queda en este teléfono. Para que todos lo vean, copia los datos y pégalos en el archivo <b>datos.json</b> del repositorio.</p>
-      <div class="row-btns">
-        <button type="button" class="ghost" id="btn-export">Copiar datos</button>
-        <button type="button" class="ghost" id="btn-import">Pegar datos</button>
-      </div>
-      <div id="io-box" class="field" hidden>
-        <label for="io-text" id="io-help"></label>
-        <textarea id="io-text" spellcheck="false"></textarea>
+      <div id="gh-on" class="field" hidden>
+        <div class="status ok">Conectado. Al tocar "Guardar todos" los informes se guardan directo en tu repositorio y toda la familia los ve.</div>
         <div class="row-btns">
-          <button type="button" class="primary" id="btn-io">Copiar texto</button>
-          <button type="button" class="ghost" id="btn-close-io">Cerrar</button>
+          <button type="button" class="primary" id="btn-sync" hidden></button>
+          <button type="button" class="ghost" id="btn-gh-off">Desconectar este teléfono</button>
         </div>
-        <div id="io-msg" class="status" hidden></div>
       </div>
+      <div id="gh-off" class="field">
+        <p class="hint">Conecta este teléfono una sola vez y la app guardará los informes directo en GitHub, sin ramas ni copiar y pegar. Sin conectar, se guardan solo en este teléfono.</p>
+        <details>
+          <summary>Cómo crear la clave (2 minutos)</summary>
+          <ol class="steps">
+            <li>Abre <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a></li>
+            <li>Nombre: <b>Reto Fit</b>. Vencimiento: el que prefieras (por ejemplo, 1 año).</li>
+            <li>En <b>Repository access</b> elige <b>Only select repositories</b> y marca <b>Reto-fit</b>.</li>
+            <li>En <b>Permissions → Repository permissions</b>, pon <b>Contents</b> en <b>Read and write</b>.</li>
+            <li>Toca <b>Generate token</b>, copia la clave y pégala aquí abajo.</li>
+          </ol>
+          <p class="hint">La clave se guarda solo en este teléfono, nunca en el repositorio.</p>
+        </details>
+        <label for="gh-token">Clave de GitHub</label>
+        <input id="gh-token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…">
+        <button type="button" class="primary" id="btn-gh-on">Conectar</button>
+      </div>
+      <div id="gh-msg" class="status" hidden></div>
+      <p class="hint" id="local-count"></p>
+      <details>
+        <summary>Copiar o pegar datos a mano</summary>
+        <div class="field" style="margin-top:10px">
+          <div class="row-btns">
+            <button type="button" class="ghost" id="btn-export">Copiar datos</button>
+            <button type="button" class="ghost" id="btn-import">Pegar datos</button>
+          </div>
+          <div id="io-box" class="field" hidden>
+            <label for="io-text" id="io-help"></label>
+            <textarea id="io-text" spellcheck="false"></textarea>
+            <div class="row-btns">
+              <button type="button" class="primary" id="btn-io">Copiar texto</button>
+              <button type="button" class="ghost" id="btn-close-io">Cerrar</button>
+            </div>
+            <div id="io-msg" class="status" hidden></div>
+          </div>
+        </div>
+      </details>
     </div>
   </section>
 </div>
@@ -350,7 +381,8 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     shared.forEach(put); local.forEach(put);
     rows = [...map.values()];
     const n = local.length;
-    $("local-count").textContent = n ? n + (n === 1 ? " informe guardado solo en este teléfono." : " informes guardados solo en este teléfono.") : "Todo está en el archivo de la familia.";
+    $("local-count").textContent = n ? n + (n === 1 ? " informe guardado solo en este teléfono." : " informes guardados solo en este teléfono.") : "Todos los informes están en el archivo de la familia.";
+    renderGh();
   }
   const newId = () => "l" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   function putLocal(list) {
@@ -359,6 +391,60 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     if (!saveLocal()) { local = prev; return false; }
     merge(); return true;
   }
+
+  // ================= GitHub: guardar directo en datos.json (rama main, sin ramas nuevas) =================
+  const GH = { owner: "jeffer91", repo: "Reto-fit", path: "datos.json", branch: "main" };
+  const TK_KEY = "retofit.gh.token";
+  let ghToken = null;
+  try { ghToken = localStorage.getItem(TK_KEY) || null; } catch (_) {}
+  const ghUrl = "https://api.github.com/repos/" + GH.owner + "/" + GH.repo + "/contents/" + GH.path;
+  const ghHeaders = (tok) => Object.assign({ Accept: "application/vnd.github+json" }, tok ? { Authorization: "Bearer " + tok } : {});
+  function b64dec(b) {
+    const bin = atob(String(b).replace(/\s/g, ""));
+    const u = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(u);
+  }
+  function b64enc(str) {
+    const u = new TextEncoder().encode(str);
+    let bin = "";
+    for (let i = 0; i < u.length; i += 0x8000) bin += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+    return btoa(bin);
+  }
+  const plainKey = (d) => nameKey(d.persona) + "|" + String(d.fecha || "").slice(0, 7);
+  const sortPlain = (arr) => arr.sort((a, b) => String(a.persona).localeCompare(String(b.persona), "es") || String(a.fecha).localeCompare(String(b.fecha)));
+  function ghError(status) { const e = new Error("github " + status); e.status = status; return e; }
+  async function ghGet(tok) {
+    const r = await fetch(ghUrl + "?ref=" + GH.branch + "&t=" + Date.now(), { headers: ghHeaders(tok), cache: "no-store" });
+    if (r.status === 404) return { sha: null, list: [] };
+    if (!r.ok) throw ghError(r.status);
+    const j = await r.json();
+    const txt = j.content ? b64dec(j.content) : "[]";
+    const list = JSON.parse(txt.trim() || "[]");
+    return { sha: j.sha, list: Array.isArray(list) ? list : [] };
+  }
+  // Lee el archivo, aplica el cambio y lo guarda en main. Si otro teléfono guardó al mismo tiempo, reintenta una vez.
+  async function ghCommit(change, message) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const { sha, list } = await ghGet(ghToken);
+      const next = sortPlain(change(list.slice()));
+      const body = { message, branch: GH.branch, content: b64enc(JSON.stringify(next, null, 2) + "\n") };
+      if (sha) body.sha = sha;
+      const r = await fetch(ghUrl, { method: "PUT", headers: Object.assign(ghHeaders(ghToken), { "Content-Type": "application/json" }), body: JSON.stringify(body) });
+      if (r.ok) return next;
+      if ((r.status === 409 || r.status === 422) && attempt === 0) continue;
+      throw ghError(r.status);
+    }
+  }
+  const upsert = (list, add) => { const keys = new Set(add.map(plainKey)); return list.filter((d) => !keys.has(plainKey(d))).concat(add); };
+  function applyShared(list) { shared = list.map((d, i) => cleanObj(d, "s" + i, "shared")).filter(Boolean); }
+  function ghWhy(e) {
+    if (e && e.status === 401) return "La clave de GitHub no es válida o ya venció. Crea una nueva y conéctala otra vez.";
+    if (e && (e.status === 403 || e.status === 404)) return "La clave no tiene permiso para guardar. Revisa que tenga Contents en \"Read and write\" para Reto-fit.";
+    if (e && e.status) return "GitHub respondió con un error (" + e.status + "). Inténtalo otra vez en un momento.";
+    return "No hay conexión con GitHub. Revisa tu internet.";
+  }
+  const listNames = (rowsPlain) => [...new Set(rowsPlain.map((d) => d.persona + " " + monthShort(String(d.fecha).slice(0, 7))))].join(", ");
 
   // ================= Cálculos =================
   // Personas con sus informes hasta el mes indicado (uno por mes, en orden)
@@ -579,16 +665,25 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
       tr.appendChild(el("td", null, monthShort(r.mes)));
       METRICS.forEach((m) => tr.appendChild(el("td", "num", fmt(r[m.key]))));
       const td = el("td");
-      if (r.origen !== "local") td.appendChild(el("span", "tag", "Familia"));
+      if (r.origen !== "local" && !ghToken) td.appendChild(el("span", "tag", "Familia"));
       else if (pendingDelete === r.id) {
         const w = el("span", "confirm");
         const y = el("button", "yes", "Borrar"); y.type = "button";
         const no = el("button", "no", "No"); no.type = "button";
-        y.addEventListener("click", () => {
+        y.addEventListener("click", async () => {
           pendingDelete = null;
-          const prev = local.slice();
-          local = local.filter((x) => x.id !== r.id);
-          if (!saveLocal()) { local = prev; showBanner("No se pudo borrar el informe."); }
+          if (r.origen === "local") {
+            const prev = local.slice();
+            local = local.filter((x) => x.id !== r.id);
+            if (!saveLocal()) { local = prev; showBanner("No se pudo borrar el informe."); }
+          } else {
+            y.disabled = true; no.disabled = true; y.textContent = "Borrando…";
+            try {
+              const k = rowKey(r);
+              applyShared(await ghCommit((list) => list.filter((d) => plainKey(d) !== k), "Borra informe: " + r.persona + " " + monthShort(r.mes)));
+              showBanner("");
+            } catch (e) { showBanner("No se pudo borrar en GitHub. " + ghWhy(e)); }
+          }
           merge(); renderAll();
         });
         no.addEventListener("click", () => { pendingDelete = null; renderDetail(); });
@@ -725,7 +820,7 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
   $("btn-manual").addEventListener("click", () => { const c = makeCard(null); c.node.querySelector("[data-f=persona]").focus(); });
   $("btn-clear").addEventListener("click", () => { cards.slice().forEach((c) => removeCard(c.id)); status("save-status", ""); status("ocr-status", ""); });
 
-  $("btn-save-all").addEventListener("click", () => {
+  $("btn-save-all").addEventListener("click", async () => {
     status("save-status", "");
     if (cards.some((c) => c.reading)) { status("save-status", "Espera a que termine de leer los informes.", "warn"); return; }
     const out = []; let bad = 0;
@@ -756,13 +851,30 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     });
     if (bad) { status("save-status", bad === 1 ? "Hay 1 tarjeta con datos por corregir (en rojo)." : "Hay " + bad + " tarjetas con datos por corregir (en rojo).", "warn"); return; }
     if (!out.length) return;
-    if (!putLocal(out.map((o) => o.row))) { status("save-status", "No se pudo guardar en este teléfono. Revisa que el navegador no esté en modo incógnito.", "warn"); return; }
     const n = out.length;
+    const plain = out.map((o) => strip(o.row));
+    let msg, kind = "ok";
+    if (ghToken) {
+      $("btn-save-all").disabled = true;
+      status("save-status", "Guardando en GitHub…", "info");
+      try {
+        applyShared(await ghCommit((list) => upsert(list, plain), "Informes: " + listNames(plain)));
+        const keys = new Set(out.map((o) => rowKey(o.row)));
+        local = local.filter((r) => !keys.has(rowKey(r))); saveLocal(); merge();
+        msg = (n === 1 ? "1 informe guardado" : n + " informes guardados") + " en GitHub. Toda la familia ya los puede ver.";
+      } catch (e) {
+        if (!putLocal(out.map((o) => o.row))) { $("btn-save-all").disabled = false; status("save-status", ghWhy(e) + " Tampoco se pudo guardar en este teléfono.", "warn"); return; }
+        msg = ghWhy(e) + " Por ahora quedaron guardados en este teléfono; súbelos luego desde \"Guardar en GitHub\"."; kind = "warn";
+      } finally { $("btn-save-all").disabled = false; }
+    } else {
+      if (!putLocal(out.map((o) => o.row))) { status("save-status", "No se pudo guardar en este teléfono. Revisa que el navegador no esté en modo incógnito.", "warn"); return; }
+      msg = (n === 1 ? "1 informe guardado" : n + " informes guardados") + " solo en este teléfono. Conecta GitHub (abajo) para que se guarden directo para toda la familia.";
+    }
     selMonth = out.map((o) => o.row.mes).sort().pop();
     out.forEach((o) => removeCard(o.card.id));
     status("ocr-status", "");
     renderAll();
-    status("save-status", (n === 1 ? "1 informe guardado" : n + " informes guardados") + " en este teléfono. Usa \"Copiar datos\" para pasarlos al archivo de la familia.", "ok");
+    status("save-status", msg, kind);
     $("t-rules").scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
@@ -1007,12 +1119,54 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     ioMsg(good.length + (good.length === 1 ? " informe agregado." : " informes agregados.") + (good.length < arr.length ? " Se omitieron " + (arr.length - good.length) + " con datos incompletos." : ""), "ok");
   });
 
+  // ================= Conexión con GitHub =================
+  function renderGh() {
+    $("gh-on").hidden = !ghToken;
+    $("gh-off").hidden = !!ghToken;
+    const b = $("btn-sync");
+    b.hidden = !ghToken || !local.length;
+    b.textContent = local.length === 1 ? "Subir 1 informe de este teléfono" : "Subir " + local.length + " informes de este teléfono";
+  }
+  $("btn-gh-on").addEventListener("click", async () => {
+    const tok = $("gh-token").value.trim();
+    if (!tok) { status("gh-msg", "Pega la clave de GitHub.", "warn"); return; }
+    if (/\s/.test(tok)) { status("gh-msg", "La clave no debe tener espacios. Cópiala otra vez.", "warn"); return; }
+    $("btn-gh-on").disabled = true; status("gh-msg", "Comprobando la clave…", "info");
+    try {
+      const r = await fetch("https://api.github.com/repos/" + GH.owner + "/" + GH.repo, { headers: ghHeaders(tok), cache: "no-store" });
+      if (!r.ok) throw ghError(r.status);
+      const { list } = await ghGet(tok);
+      try { localStorage.setItem(TK_KEY, tok); } catch (_) { status("gh-msg", "Este navegador no permite guardar la clave (¿modo incógnito?).", "warn"); return; }
+      ghToken = tok; $("gh-token").value = "";
+      applyShared(list); merge(); renderAll();
+      status("gh-msg", "Listo. Este teléfono ya guarda directo en GitHub." + (local.length ? " Toca el botón para subir los informes que tenías aquí." : ""), "ok");
+    } catch (e) { status("gh-msg", ghWhy(e), "warn"); }
+    finally { $("btn-gh-on").disabled = false; }
+  });
+  $("btn-gh-off").addEventListener("click", () => {
+    try { localStorage.removeItem(TK_KEY); } catch (_) {}
+    ghToken = null; merge(); renderAll();
+    status("gh-msg", "Desconectado. La clave se borró de este teléfono.", "info");
+  });
+  $("btn-sync").addEventListener("click", async () => {
+    if (!ghToken || !local.length) return;
+    const b = $("btn-sync"); b.disabled = true; status("gh-msg", "Subiendo a GitHub…", "info");
+    try {
+      const plain = local.map(strip);
+      applyShared(await ghCommit((list) => upsert(list, plain), "Informes: " + listNames(plain)));
+      const n = local.length; local = []; saveLocal(); merge(); renderAll();
+      status("gh-msg", (n === 1 ? "1 informe subido" : n + " informes subidos") + " a GitHub.", "ok");
+    } catch (e) { status("gh-msg", ghWhy(e), "warn"); }
+    finally { b.disabled = false; }
+  });
+
   // ================= Inicio =================
   Object.assign(debug, { parseReport, checks, nameFromFile });
   loadLocal(); merge(); renderAll();
-  fetch("datos.json?v=" + Date.now(), { cache: "no-store" })
-    .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
-    .then((arr) => { shared = Array.isArray(arr) ? arr.map((d, i) => cleanObj(d, "s" + i, "shared")).filter(Boolean) : []; selMonth = null; merge(); renderAll(); })
+  // Primero se lee el archivo directo de GitHub (siempre al día); si falla, la copia publicada en la página
+  ghGet(ghToken).then(({ list }) => list).catch(() => fetch("datos.json?v=" + Date.now(), { cache: "no-store" })
+    .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); }))
+    .then((arr) => { applyShared(Array.isArray(arr) ? arr : []); selMonth = null; merge(); renderAll(); })
     .catch(() => { if (location.protocol !== "file:") showBanner("No se pudo cargar el archivo de la familia (datos.json). Se muestran solo los informes de este teléfono."); merge(); renderAll(); });
 })();
 </script>
