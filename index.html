@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b6e8a">
+<meta http-equiv="Cache-Control" content="no-cache">
 <title>Reto Fit Familia</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap">
@@ -305,11 +306,18 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
         <button type="button" class="ghost" id="btn-pin-off" hidden>Quitar PIN de este teléfono</button>
       </div>
       <div id="set-msg" class="status" hidden></div>
+      <p class="hint">Versión 2026-11-08 · Supabase</p>
     </div>
   </section>
 </div>
 <datalist id="names-dl"></datalist>
-<script src="config.js"></script>
+<script>
+  // Conexión con Supabase (proyecto "Reto Fit"). La clave publishable es pública: solo permite ver; guardar exige el PIN.
+  window.RETOFIT_CONFIG = window.RETOFIT_CONFIG || {
+    supabaseUrl: "https://omqmynobelpqzbzipxjz.supabase.co",
+    supabaseKey: "sb_publishable_vtrnzmfiZaSFvjtLNLkeZA_UlowI1CZ"
+  };
+</script>
 <script>
 (() => {
   "use strict";

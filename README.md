@@ -11,8 +11,7 @@ Los datos se guardan en **Supabase**.
 1. Crea un proyecto en [supabase.com](https://supabase.com) (el plan gratis alcanza).
 2. Abre [`supabase.sql`](supabase.sql), cambia `CAMBIA-ESTE-PIN` por el PIN de la familia,
    y ejecútalo en **SQL Editor → New query → Run**. Crea las tablas, la seguridad y carga los informes que ya había.
-3. En la app, ve a **Ajustes** y pega la *Project URL* y la clave **publishable** (o *anon public*).
-   Para dejarlo fijo para toda la familia, pon esos dos datos en [`config.js`](config.js).
+3. La URL y la clave publishable del proyecto están en `index.html` (`RETOFIT_CONFIG`).
 4. Guarda el PIN en los teléfonos que van a subir informes.
 
 Cualquiera con el link puede ver los datos; solo quien tiene el PIN puede guardar, borrar o marcar pagos.
