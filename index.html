@@ -169,6 +169,19 @@ th.sel { color: var(--accent); }
 .tag { font-size: .7rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 2px 7px; border-radius: 999px; }
 .steps { margin: 10px 0 8px; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: .88rem; }
 .steps a { color: var(--accent); word-break: break-all; }
+.payrow-right { display: flex; align-items: center; gap: 8px; flex: none; }
+.paybtn { border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; padding: 6px 12px; font: 600 .8rem var(--font-body); cursor: pointer; white-space: nowrap; }
+.paybtn.on { background: var(--good-soft); color: var(--good); border-color: var(--good); }
+.paybtn:disabled { opacity: .6; cursor: default; }
+.paystate { font-size: .75rem; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.paystate.on { background: var(--good-soft); color: var(--good); }
+.paystate.off { background: var(--bad-soft); color: var(--bad); }
+.paysum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.paysum > div { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; min-width: 0; }
+.paysum .big { font-family: var(--font-display); font-size: 1.6rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.paysum .bad { color: var(--bad); } .paysum .good { color: var(--good); }
+.paynote { margin-top: 10px; }
+.paycopy { margin-top: 12px; width: 100%; }
 textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background: var(--bg); min-height: 180px; resize: vertical; }
 @media (max-width: 480px) {
   .metrics, .grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -203,6 +216,10 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
       <input id="file-in" type="file" accept="application/pdf,image/*" multiple class="sr-only">
       <div id="ocr-status" class="status info" hidden></div>
       <div id="cards" class="cards"></div>
+      <div id="pin-row" class="field" hidden>
+        <label for="pin-inline">PIN de la familia (solo la primera vez en este teléfono)</label>
+        <input id="pin-inline" type="password" autocomplete="off" inputmode="numeric">
+      </div>
       <div id="save-bar" class="row-btns" hidden>
         <button type="button" class="primary" id="btn-save-all">Guardar todos</button>
         <button type="button" class="ghost" id="btn-clear">Descartar todos</button>
@@ -226,6 +243,14 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     <div id="verdict-area"></div>
   </section>
 
+  <section aria-labelledby="t-pay">
+    <div class="head-row">
+      <h2 id="t-pay">Lista de pagos</h2>
+      <span class="label" id="pay-month"></span>
+    </div>
+    <div id="pay-area"></div>
+  </section>
+
   <section aria-labelledby="t-tri">
     <h2 id="t-tri">Tabla de todos los meses</h2>
     <div id="tri-area"></div>
@@ -246,58 +271,45 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     <div id="detail-area"></div>
   </section>
 
-  <section aria-labelledby="t-io">
-    <h2 id="t-io">Guardar en GitHub</h2>
+  <section aria-labelledby="t-set">
+    <h2 id="t-set">Ajustes</h2>
     <div class="panel">
-      <div id="gh-on" class="field" hidden>
-        <div class="status ok">Conectado. Al tocar "Guardar todos" los informes se guardan directo en tu repositorio y toda la familia los ve.</div>
-        <div class="row-btns">
-          <button type="button" class="primary" id="btn-sync" hidden></button>
-          <button type="button" class="ghost" id="btn-gh-off">Desconectar este teléfono</button>
+      <div class="field">
+        <b>Base de datos (Supabase)</b>
+        <div id="sb-state" class="status info"></div>
+        <div id="sb-form" class="field" hidden>
+          <label for="sb-url">URL del proyecto</label>
+          <input id="sb-url" type="url" autocomplete="off" spellcheck="false" placeholder="https://xxxx.supabase.co">
+          <label for="sb-key">Clave pública (publishable o anon)</label>
+          <input id="sb-key" autocomplete="off" spellcheck="false" placeholder="sb_publishable_… o eyJ…">
+          <button type="button" class="primary" id="btn-sb">Conectar</button>
+          <details>
+            <summary>Dónde encontrar estos datos</summary>
+            <ol class="steps">
+              <li>En Supabase abre tu proyecto y entra a <b>Project Settings → API Keys</b> (o <b>Data API</b>).</li>
+              <li>Copia la <b>Project URL</b> y la clave <b>publishable</b> (o <b>anon public</b>).</li>
+              <li>Nunca uses la clave <b>secret</b> ni <b>service_role</b>.</li>
+            </ol>
+          </details>
         </div>
+        <button type="button" class="ghost" id="btn-sb-off" hidden>Cambiar proyecto</button>
       </div>
-      <div id="gh-off" class="field">
-        <p class="hint">Conecta este teléfono una sola vez y la app guardará los informes directo en GitHub, sin ramas ni copiar y pegar. Sin conectar, se guardan solo en este teléfono.</p>
-        <details>
-          <summary>Cómo crear la clave (2 minutos)</summary>
-          <ol class="steps">
-            <li>Abre <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a></li>
-            <li>Nombre: <b>Reto Fit</b>. Vencimiento: el que prefieras (por ejemplo, 1 año).</li>
-            <li>En <b>Repository access</b> elige <b>Only select repositories</b> y marca <b>Reto-fit</b>.</li>
-            <li>En <b>Permissions → Repository permissions</b>, pon <b>Contents</b> en <b>Read and write</b>.</li>
-            <li>Toca <b>Generate token</b>, copia la clave y pégala aquí abajo.</li>
-          </ol>
-          <p class="hint">La clave se guarda solo en este teléfono, nunca en el repositorio.</p>
-        </details>
-        <label for="gh-token">Clave de GitHub</label>
-        <input id="gh-token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…">
-        <button type="button" class="primary" id="btn-gh-on">Conectar</button>
-      </div>
-      <div id="gh-msg" class="status" hidden></div>
-      <p class="hint" id="local-count"></p>
-      <details>
-        <summary>Copiar o pegar datos a mano</summary>
-        <div class="field" style="margin-top:10px">
-          <div class="row-btns">
-            <button type="button" class="ghost" id="btn-export">Copiar datos</button>
-            <button type="button" class="ghost" id="btn-import">Pegar datos</button>
-          </div>
-          <div id="io-box" class="field" hidden>
-            <label for="io-text" id="io-help"></label>
-            <textarea id="io-text" spellcheck="false"></textarea>
-            <div class="row-btns">
-              <button type="button" class="primary" id="btn-io">Copiar texto</button>
-              <button type="button" class="ghost" id="btn-close-io">Cerrar</button>
-            </div>
-            <div id="io-msg" class="status" hidden></div>
-          </div>
+      <div class="field">
+        <b>PIN de la familia</b>
+        <p class="hint" id="pin-state"></p>
+        <div id="pin-form" class="field">
+          <label for="pin-set" class="sr-only">PIN</label>
+          <input id="pin-set" type="password" autocomplete="off" inputmode="numeric" placeholder="PIN">
+          <button type="button" class="primary" id="btn-pin">Guardar PIN en este teléfono</button>
         </div>
-      </details>
+        <button type="button" class="ghost" id="btn-pin-off" hidden>Quitar PIN de este teléfono</button>
+      </div>
+      <div id="set-msg" class="status" hidden></div>
     </div>
   </section>
 </div>
 <datalist id="names-dl"></datalist>
-
+<script src="config.js"></script>
 <script>
 (() => {
   "use strict";
@@ -335,18 +347,18 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
   const showBanner = (msg) => { const b = $("banner"); b.textContent = msg || ""; b.hidden = !msg; };
   const status = (id, msg, kind) => { const s = $(id); s.textContent = msg || ""; s.className = "status " + (kind || "info"); s.hidden = !msg; };
 
-  // ================= Datos =================
-  // shared = datos.json del repositorio · local = guardado en este teléfono
-  const LS_KEY = "retofit.local.v1";
-  let shared = [], local = [], rows = [];
+  // ================= Datos (Supabase) =================
+  let rows = [];
+  let pagos = new Map();   // "persona|mes" -> { pagado, monto }
+  let fuente = "cargando"; // "supabase" | "archivo"
   let selMonth = null, rankMetric = "total", selected = null, chartMetric = "peso", pendingDelete = null;
 
-  function cleanObj(d, id, origen) {
+  function cleanObj(d, id) {
     if (!d || typeof d !== "object") return null;
     const persona = normName(d.persona).slice(0, 40);
     if (!persona || !/^\d{4}-\d{2}-\d{2}$/.test(d.fecha || "")) return null;
     for (const m of METRICS) if (typeof d[m.key] !== "number" || !isFinite(d[m.key])) return null;
-    const o = { id, origen, persona, fecha: d.fecha, mes: d.fecha.slice(0, 7), creado: typeof d.creado === "string" ? d.creado : "" };
+    const o = { id, persona, fecha: d.fecha, mes: d.fecha.slice(0, 7) };
     METRICS.forEach((m) => { o[m.key] = d[m.key]; });
     // Perfil opcional (sirve para reconocer a la persona cuando el archivo no trae nombre)
     if (typeof d.altura === "number" && d.altura >= 80 && d.altura <= 250) o.altura = d.altura;
@@ -361,90 +373,71 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     return o;
   }
   const rowKey = (r) => nameKey(r.persona) + "|" + r.mes;
-  function loadLocal() {
-    try {
-      const arr = JSON.parse(localStorage.getItem(LS_KEY) || "[]");
-      local = Array.isArray(arr) ? arr.map((d, i) => cleanObj(d, d && d.id ? String(d.id) : "l" + i, "local")).filter(Boolean) : [];
-    } catch (_) { local = []; }
-  }
-  function saveLocal() {
-    try { localStorage.setItem(LS_KEY, JSON.stringify(local.map((r) => ({ id: r.id, creado: r.creado, ...strip(r) })))); return true; }
-    catch (_) { return false; }
-  }
-  // Un informe por persona y mes. El del teléfono reemplaza al del archivo; dentro del mismo origen gana el más reciente.
-  function merge() {
+  function setRows(list) {
     const map = new Map();
-    const put = (r) => {
-      const k = rowKey(r), o = map.get(k);
-      if (!o || (o.origen === r.origen ? r.fecha >= o.fecha : r.origen === "local")) map.set(k, r);
-    };
-    shared.forEach(put); local.forEach(put);
+    list.forEach((r) => { const o = map.get(rowKey(r)); if (!o || r.fecha >= o.fecha) map.set(rowKey(r), r); });
     rows = [...map.values()];
-    const n = local.length;
-    $("local-count").textContent = n ? n + (n === 1 ? " informe guardado solo en este teléfono." : " informes guardados solo en este teléfono.") : "Todos los informes están en el archivo de la familia.";
-    renderGh();
   }
-  const newId = () => "l" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-  function putLocal(list) {
-    const prev = local.slice();
-    list.forEach((row) => { local = local.filter((r) => rowKey(r) !== rowKey(row)); local.push(row); });
-    if (!saveLocal()) { local = prev; return false; }
-    merge(); return true;
-  }
+  const numOrU = (v) => v == null || v === "" ? undefined : Number(v);
+  const fromDb = (d) => ({
+    persona: d.persona, fecha: String(d.fecha).slice(0, 10),
+    puntuacion: Number(d.puntuacion), peso: Number(d.peso), grasaPct: Number(d.grasa_pct),
+    masaGrasa: Number(d.masa_grasa), masaMuscular: Number(d.masa_muscular), imc: Number(d.imc),
+    altura: numOrU(d.altura), genero: d.genero || undefined, edad: numOrU(d.edad),
+  });
 
-  // ================= GitHub: guardar directo en datos.json (rama main, sin ramas nuevas) =================
-  const GH = { owner: "jeffer91", repo: "Reto-fit", path: "datos.json", branch: "main" };
-  const TK_KEY = "retofit.gh.token";
-  let ghToken = null;
-  try { ghToken = localStorage.getItem(TK_KEY) || null; } catch (_) {}
-  const ghUrl = "https://api.github.com/repos/" + GH.owner + "/" + GH.repo + "/contents/" + GH.path;
-  const ghHeaders = (tok) => Object.assign({ Accept: "application/vnd.github+json" }, tok ? { Authorization: "Bearer " + tok } : {});
-  function b64dec(b) {
-    const bin = atob(String(b).replace(/\s/g, ""));
-    const u = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
-    return new TextDecoder().decode(u);
+  // ---- Conexión ----
+  const CFG_KEY = "retofit.supabase", PIN_KEY = "retofit.pin";
+  const lsGet = (k) => { try { return localStorage.getItem(k); } catch (_) { return null; } };
+  const lsSet = (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); return true; } catch (_) { return false; } };
+  function getCfg() {
+    const c = window.RETOFIT_CONFIG || {};
+    if (c.supabaseUrl && c.supabaseKey) return { url: String(c.supabaseUrl).replace(/\/+$/, ""), key: String(c.supabaseKey), fixed: true };
+    try { const x = JSON.parse(lsGet(CFG_KEY) || "null"); if (x && x.url && x.key) return { url: x.url, key: x.key, fixed: false }; } catch (_) {}
+    return null;
   }
-  function b64enc(str) {
-    const u = new TextEncoder().encode(str);
-    let bin = "";
-    for (let i = 0; i < u.length; i += 0x8000) bin += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
-    return btoa(bin);
-  }
-  const plainKey = (d) => nameKey(d.persona) + "|" + String(d.fecha || "").slice(0, 7);
-  const sortPlain = (arr) => arr.sort((a, b) => String(a.persona).localeCompare(String(b.persona), "es") || String(a.fecha).localeCompare(String(b.fecha)));
-  function ghError(status) { const e = new Error("github " + status); e.status = status; return e; }
-  async function ghGet(tok) {
-    const r = await fetch(ghUrl + "?ref=" + GH.branch + "&t=" + Date.now(), { headers: ghHeaders(tok), cache: "no-store" });
-    if (r.status === 404) return { sha: null, list: [] };
-    if (!r.ok) throw ghError(r.status);
-    const j = await r.json();
-    const txt = j.content ? b64dec(j.content) : "[]";
-    const list = JSON.parse(txt.trim() || "[]");
-    return { sha: j.sha, list: Array.isArray(list) ? list : [] };
-  }
-  // Lee el archivo, aplica el cambio y lo guarda en main. Si otro teléfono guardó al mismo tiempo, reintenta una vez.
-  async function ghCommit(change, message) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const { sha, list } = await ghGet(ghToken);
-      const next = sortPlain(change(list.slice()));
-      const body = { message, branch: GH.branch, content: b64enc(JSON.stringify(next, null, 2) + "\n") };
-      if (sha) body.sha = sha;
-      const r = await fetch(ghUrl, { method: "PUT", headers: Object.assign(ghHeaders(ghToken), { "Content-Type": "application/json" }), body: JSON.stringify(body) });
-      if (r.ok) return next;
-      if ((r.status === 409 || r.status === 422) && attempt === 0) continue;
-      throw ghError(r.status);
+  let cfg = getCfg();
+  let pin = lsGet(PIN_KEY);
+  const canWrite = () => fuente === "supabase" && !!pin;
+  async function sb(path, opts, conf) {
+    const c = conf || cfg;
+    const h = { apikey: c.key, Accept: "application/json", "Content-Type": "application/json" };
+    if (/^eyJ/.test(c.key)) h.Authorization = "Bearer " + c.key;
+    const r = await fetch(c.url + path, Object.assign({ cache: "no-store" }, opts || {}, { headers: h }));
+    const txt = await r.text();
+    let j = null;
+    try { j = txt ? JSON.parse(txt) : null; } catch (_) {}
+    if (!r.ok) {
+      const e = new Error((j && (j.message || j.hint || j.error)) || ("HTTP " + r.status));
+      e.status = r.status; e.code = j && j.code; throw e;
     }
+    return j;
   }
-  const upsert = (list, add) => { const keys = new Set(add.map(plainKey)); return list.filter((d) => !keys.has(plainKey(d))).concat(add); };
-  function applyShared(list) { shared = list.map((d, i) => cleanObj(d, "s" + i, "shared")).filter(Boolean); }
-  function ghWhy(e) {
-    if (e && e.status === 401) return "La clave de GitHub no es válida o ya venció. Crea una nueva y conéctala otra vez.";
-    if (e && (e.status === 403 || e.status === 404)) return "La clave no tiene permiso para guardar. Revisa que tenga Contents en \"Read and write\" para Reto-fit.";
-    if (e && e.status) return "GitHub respondió con un error (" + e.status + "). Inténtalo otra vez en un momento.";
-    return "No hay conexión con GitHub. Revisa tu internet.";
+  const rpc = (fn, args, conf) => sb("/rest/v1/rpc/" + fn, { method: "POST", body: JSON.stringify(args) }, conf);
+  const isPinErr = (e) => e && /PIN incorrecto/i.test(e.message || "");
+  function sbWhy(e) {
+    if (isPinErr(e)) return "El PIN no es correcto.";
+    if (e && (e.status === 404 || ["PGRST202", "PGRST205", "42P01", "42883"].includes(e.code))) return "Faltan las tablas en Supabase: ejecuta el archivo supabase.sql en el SQL Editor.";
+    if (e && (e.status === 401 || e.status === 403)) return "Supabase rechazó la clave. Revisa que sea la publishable o anon del proyecto.";
+    if (e && e.status) return "Supabase respondió con un error: " + (e.message || e.status) + ".";
+    return "No hay conexión con Supabase. Revisa tu internet.";
   }
-  const listNames = (rowsPlain) => [...new Set(rowsPlain.map((d) => d.persona + " " + monthShort(String(d.fecha).slice(0, 7))))].join(", ");
+  async function loadData() {
+    if (!cfg) {
+      const r = await fetch("datos.json?v=" + Date.now(), { cache: "no-store" });
+      const arr = r.ok ? await r.json() : [];
+      setRows((Array.isArray(arr) ? arr : []).map((d, i) => cleanObj(d, "a" + i)).filter(Boolean));
+      pagos = new Map(); fuente = "archivo";
+      return;
+    }
+    const [inf, pg] = await Promise.all([
+      sb("/rest/v1/informes?select=persona,fecha,puntuacion,peso,grasa_pct,masa_grasa,masa_muscular,imc,altura,genero,edad&order=fecha.asc&limit=10000"),
+      sb("/rest/v1/pagos?select=persona,mes,monto,pagado&limit=10000"),
+    ]);
+    setRows((inf || []).map(fromDb).map((d, i) => cleanObj(d, "r" + i)).filter(Boolean));
+    pagos = new Map((pg || []).map((x) => [nameKey(x.persona) + "|" + x.mes, { pagado: !!x.pagado, monto: Number(x.monto) || 0 }]));
+    fuente = "supabase";
+  }
 
   // ================= Cálculos =================
   // Personas con sus informes hasta el mes indicado (uno por mes, en orden)
@@ -538,32 +531,120 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     const hr = el("tr");
     hr.appendChild(el("th", null, "Persona"));
     ms.forEach((ym) => hr.appendChild(el("th", ym === selMonth ? "sel" : null, monthShort(ym))));
-    hr.append(el("th", null, "★"), el("th", null, "Pagos"));
+    hr.append(el("th", null, "★"), el("th", null, "Total"), el("th", null, "Debe"));
     const thead = el("thead"); thead.appendChild(hr); t.appendChild(thead);
     const tb = el("tbody");
-    let gStars = 0, gPay = 0;
+    let gStars = 0, gPay = 0, gDebt = 0;
     const perMonth = ms.map(() => 0);
     ps.forEach((p) => {
       const tr = el("tr");
       tr.appendChild(el("td", null, p.name));
-      let st = 0, pay = 0;
+      let st = 0, pay = 0, debt = 0;
       ms.forEach((ym, i) => {
         const v = verdict(p.list, ym);
-        const td = el("td"); td.title = v.why;
-        td.appendChild(v.kind === "none" ? el("span", "hint", "—") : el("span", "badge " + v.cls, v.badge));
-        if (v.star) st++; pay += v.pay; perMonth[i] += v.pay;
+        const paid = v.pay > 0 && isPaid(p.name, ym);
+        const td = el("td"); td.title = v.why + (v.pay > 0 ? (paid ? " Pagado." : " Pendiente.") : "");
+        td.appendChild(v.kind === "none" ? el("span", "hint", "—") : el("span", "badge " + v.cls, v.badge + (paid ? " ✓" : "")));
+        if (v.star) st++; pay += v.pay; perMonth[i] += v.pay; if (!paid) debt += v.pay;
         tr.appendChild(td);
       });
-      gStars += st; gPay += pay;
-      tr.append(el("td", "tot gold", String(st)), el("td", "tot", "$" + pay));
+      gStars += st; gPay += pay; gDebt += debt;
+      const dtd = el("td", "tot", "$" + debt); if (debt) dtd.style.color = "var(--bad)";
+      tr.append(el("td", "tot gold", String(st)), el("td", "tot", "$" + pay), dtd);
       tb.appendChild(tr);
     });
     const tr = el("tr");
     tr.appendChild(el("td", "tot", "Total"));
     perMonth.forEach((v) => tr.appendChild(el("td", "tot", "$" + v)));
-    tr.append(el("td", "tot gold", String(gStars)), el("td", "tot", "$" + gPay));
+    const gd = el("td", "tot", "$" + gDebt); if (gDebt) gd.style.color = "var(--bad)";
+    tr.append(el("td", "tot gold", String(gStars)), el("td", "tot", "$" + gPay), gd);
     tb.appendChild(tr);
     t.appendChild(tb); wrap.appendChild(t); area.appendChild(wrap);
+  }
+
+  const isPaid = (name, ym) => !!(pagos.get(nameKey(name) + "|" + ym) || {}).pagado;
+  function payText(ym, payers, stars, free) {
+    const L = ["Reto Fit Familia – " + monthName(ym)];
+    if (payers.length) {
+      L.push("", "💰 Pagan:");
+      payers.forEach(({ p, v }) => L.push("• " + p.name + ": $" + v.pay + " (" + (v.kind === "worse" ? "empeoró" : "se mantuvo") + ")" + (isPaid(p.name, ym) ? " ✅ pagado" : "")));
+      const tot = payers.reduce((s, x) => s + x.v.pay, 0), pend = payers.reduce((s, x) => s + (isPaid(x.p.name, ym) ? 0 : x.v.pay), 0);
+      L.push("Total: $" + tot + (pend !== tot ? " (pendiente $" + pend + ")" : ""));
+    } else L.push("", "Nadie paga este mes. 🎉");
+    if (stars.length) L.push("", "⭐ Estrella dorada: " + stars.map((x) => x.p.name).join(", "));
+    if (free.length) L.push("🙌 No pagan por más de " + RULES.exentoSobre + " puntos: " + free.map((x) => x.p.name).join(", "));
+    return L.join("\n");
+  }
+  function renderPagos() {
+    $("pay-month").textContent = monthName(selMonth);
+    const area = $("pay-area"); area.textContent = "";
+    const ps = people(selMonth);
+    const vs = ps.map((p) => ({ p, v: verdict(p.list, selMonth) }));
+    if (!vs.some((x) => x.v.kind !== "none")) { area.appendChild(el("div", "empty", "Sube los informes de " + MONTHS[Number(selMonth.slice(5)) - 1] + " para ver quién tiene que pagar.")); return; }
+    const payers = vs.filter((x) => x.v.pay > 0).sort((a, b) => b.v.pay - a.v.pay || a.p.name.localeCompare(b.p.name, "es"));
+    const stars = vs.filter((x) => x.v.kind === "star");
+    const free = vs.filter((x) => x.v.kind === "free");
+    const first = vs.filter((x) => x.v.kind === "first");
+    const none = vs.filter((x) => x.v.kind === "none");
+    if (!payers.length) area.appendChild(el("div", "empty", "Nadie tiene que pagar en " + MONTHS[Number(selMonth.slice(5)) - 1] + "."));
+    else {
+      const ul = el("ul", "verdicts");
+      payers.forEach(({ p, v }) => {
+        const paid = isPaid(p.name, selMonth);
+        const li = el("li");
+        const d = el("div");
+        d.append(el("b", null, p.name), el("span", "why", (v.kind === "worse" ? "Empeoró " : "Se mantuvo ") + fmtPct(v.v)));
+        const right = el("div", "payrow-right");
+        right.appendChild(el("span", "badge " + v.cls, "$" + v.pay));
+        if (canWrite()) {
+          const b = el("button", "paybtn" + (paid ? " on" : ""), paid ? "Pagado ✓" : "Marcar pagado"); b.type = "button";
+          b.setAttribute("aria-pressed", String(paid));
+          b.addEventListener("click", async () => {
+            b.disabled = true;
+            try {
+              await rpc("marcar_pago", { p_pin: pin, p_persona: p.name, p_mes: selMonth, p_monto: v.pay, p_pagado: !paid });
+              pagos.set(nameKey(p.name) + "|" + selMonth, { pagado: !paid, monto: v.pay });
+              showBanner("");
+            } catch (e) {
+              if (isPinErr(e)) { pin = null; lsSet(PIN_KEY, null); renderSettings(); }
+              showBanner("No se pudo marcar el pago. " + sbWhy(e));
+            }
+            renderPagos(); renderTri();
+          });
+          right.appendChild(b);
+        } else right.appendChild(el("span", "paystate " + (paid ? "on" : "off"), paid ? "Pagado" : "Pendiente"));
+        li.append(d, right);
+        ul.appendChild(li);
+      });
+      area.appendChild(ul);
+      const tot = payers.reduce((s, x) => s + x.v.pay, 0);
+      const pend = payers.reduce((s, x) => s + (isPaid(x.p.name, selMonth) ? 0 : x.v.pay), 0);
+      const sum = el("div", "paysum");
+      [["Pendiente", "$" + pend, pend ? "bad" : ""], ["Pagado", "$" + (tot - pend), tot - pend ? "good" : ""], ["Total", "$" + tot, ""]].forEach(([l, val, c]) => {
+        const x = el("div"); x.append(el("div", "label", l), el("div", "big " + c, val)); sum.appendChild(x);
+      });
+      area.appendChild(sum);
+    }
+    const notes = [];
+    if (stars.length) notes.push("Estrella dorada: " + stars.map((x) => x.p.name).join(", ") + ".");
+    if (free.length) notes.push("No pagan por tener más de " + RULES.exentoSobre + " puntos: " + free.map((x) => x.p.name).join(", ") + ".");
+    if (first.length) notes.push("Primer informe, no pagan: " + first.map((x) => x.p.name).join(", ") + ".");
+    if (none.length) notes.push("Sin informe este mes: " + none.map((x) => x.p.name).join(", ") + ".");
+    notes.forEach((t) => area.appendChild(el("p", "hint paynote", t)));
+    const cb = el("button", "ghost paycopy", "Copiar lista para WhatsApp"); cb.type = "button";
+    const msg = el("div", "status"); msg.hidden = true; msg.style.marginTop = "8px";
+    cb.addEventListener("click", async () => {
+      const text = payText(selMonth, payers, stars, free);
+      try { await navigator.clipboard.writeText(text); msg.className = "status ok"; msg.textContent = "Lista copiada. Pégala en el grupo de la familia."; }
+      catch (_) {
+        msg.className = "status info"; msg.textContent = "";
+        const ta = el("textarea"); ta.value = text; ta.readOnly = true; ta.style.minHeight = "160px";
+        msg.append(el("div", null, "Mantén presionado el texto y elige Copiar:"), ta);
+        setTimeout(() => { ta.focus(); ta.select(); }, 0);
+      }
+      msg.hidden = false;
+    });
+    area.append(cb, msg);
   }
 
   const TOTAL = { key: "total", short: "Avance total" };
@@ -665,26 +746,21 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
       tr.appendChild(el("td", null, monthShort(r.mes)));
       METRICS.forEach((m) => tr.appendChild(el("td", "num", fmt(r[m.key]))));
       const td = el("td");
-      if (r.origen !== "local" && !ghToken) td.appendChild(el("span", "tag", "Familia"));
+      if (!canWrite()) { /* solo lectura */ }
       else if (pendingDelete === r.id) {
         const w = el("span", "confirm");
         const y = el("button", "yes", "Borrar"); y.type = "button";
         const no = el("button", "no", "No"); no.type = "button";
         y.addEventListener("click", async () => {
-          pendingDelete = null;
-          if (r.origen === "local") {
-            const prev = local.slice();
-            local = local.filter((x) => x.id !== r.id);
-            if (!saveLocal()) { local = prev; showBanner("No se pudo borrar el informe."); }
-          } else {
-            y.disabled = true; no.disabled = true; y.textContent = "Borrando…";
-            try {
-              const k = rowKey(r);
-              applyShared(await ghCommit((list) => list.filter((d) => plainKey(d) !== k), "Borra informe: " + r.persona + " " + monthShort(r.mes)));
-              showBanner("");
-            } catch (e) { showBanner("No se pudo borrar en GitHub. " + ghWhy(e)); }
+          y.disabled = true; no.disabled = true; y.textContent = "Borrando…";
+          try {
+            await rpc("borrar_informe", { p_pin: pin, p_persona: r.persona, p_mes: r.mes });
+            await loadData(); showBanner("");
+          } catch (e) {
+            if (isPinErr(e)) { pin = null; lsSet(PIN_KEY, null); renderSettings(); }
+            showBanner("No se pudo borrar. " + sbWhy(e));
           }
-          merge(); renderAll();
+          pendingDelete = null; renderAll();
         });
         no.addEventListener("click", () => { pendingDelete = null; renderDetail(); });
         w.append(y, no); td.appendChild(w);
@@ -743,6 +819,7 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
   function renderAll() {
     renderMonthSel();
     renderVerdicts();
+    renderPagos();
     renderTri();
     renderRank();
     renderDetail();
@@ -846,35 +923,39 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
         if (seen.has(k)) { setMsg(fld("persona"), "Ya hay otra tarjeta de " + persona + " en " + monthName(mes).toLowerCase() + ".", "err"); ok = false; }
         else seen.add(k);
       }
-      if (ok) { const row = cleanObj(data, newId(), "local"); row.creado = new Date().toISOString(); out.push({ card: c, row }); }
+      if (ok) out.push({ card: c, row: cleanObj(data, "n" + out.length) });
       else bad++;
     });
     if (bad) { status("save-status", bad === 1 ? "Hay 1 tarjeta con datos por corregir (en rojo)." : "Hay " + bad + " tarjetas con datos por corregir (en rojo).", "warn"); return; }
     if (!out.length) return;
-    const n = out.length;
-    const plain = out.map((o) => strip(o.row));
-    let msg, kind = "ok";
-    if (ghToken) {
-      $("btn-save-all").disabled = true;
-      status("save-status", "Guardando en GitHub…", "info");
+    if (fuente !== "supabase") { status("save-status", "Primero conecta Supabase en Ajustes (al final de la página).", "warn"); return; }
+    const btn = $("btn-save-all");
+    if (!pin) {
+      const p = $("pin-inline").value.trim();
+      if (!p) { $("pin-row").hidden = false; $("pin-inline").focus(); status("save-status", "Escribe el PIN de la familia para guardar.", "warn"); return; }
+      btn.disabled = true;
       try {
-        applyShared(await ghCommit((list) => upsert(list, plain), "Informes: " + listNames(plain)));
-        const keys = new Set(out.map((o) => rowKey(o.row)));
-        local = local.filter((r) => !keys.has(rowKey(r))); saveLocal(); merge();
-        msg = (n === 1 ? "1 informe guardado" : n + " informes guardados") + " en GitHub. Toda la familia ya los puede ver.";
-      } catch (e) {
-        if (!putLocal(out.map((o) => o.row))) { $("btn-save-all").disabled = false; status("save-status", ghWhy(e) + " Tampoco se pudo guardar en este teléfono.", "warn"); return; }
-        msg = ghWhy(e) + " Por ahora quedaron guardados en este teléfono; súbelos luego desde \"Guardar en GitHub\"."; kind = "warn";
-      } finally { $("btn-save-all").disabled = false; }
-    } else {
-      if (!putLocal(out.map((o) => o.row))) { status("save-status", "No se pudo guardar en este teléfono. Revisa que el navegador no esté en modo incógnito.", "warn"); return; }
-      msg = (n === 1 ? "1 informe guardado" : n + " informes guardados") + " solo en este teléfono. Conecta GitHub (abajo) para que se guarden directo para toda la familia.";
+        if (!(await rpc("verificar_pin", { p_pin: p }))) { status("save-status", "El PIN no es correcto.", "warn"); return; }
+      } catch (e) { status("save-status", sbWhy(e), "warn"); return; }
+      finally { btn.disabled = false; }
+      pin = p; lsSet(PIN_KEY, p); $("pin-inline").value = ""; $("pin-row").hidden = true; renderSettings();
     }
+    const n = out.length;
+    btn.disabled = true;
+    status("save-status", "Guardando en Supabase…", "info");
+    try {
+      await rpc("guardar_informes", { p_pin: pin, p_informes: out.map((o) => strip(o.row)) });
+      await loadData();
+    } catch (e) {
+      if (isPinErr(e)) { pin = null; lsSet(PIN_KEY, null); $("pin-row").hidden = false; renderSettings(); }
+      status("save-status", "No se guardó. " + sbWhy(e), "warn");
+      return;
+    } finally { btn.disabled = false; }
     selMonth = out.map((o) => o.row.mes).sort().pop();
     out.forEach((o) => removeCard(o.card.id));
     status("ocr-status", "");
     renderAll();
-    status("save-status", msg, kind);
+    status("save-status", (n === 1 ? "1 informe guardado" : n + " informes guardados") + " en Supabase. Toda la familia ya los puede ver.", "ok");
     $("t-rules").scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
@@ -1087,87 +1168,77 @@ textarea { font: .82rem/1.4 ui-monospace, Menlo, Consolas, monospace; background
     status("ocr-status", parts.join(" "), fail ? "warn" : "info");
   });
 
-  // ================= Exportar / importar =================
-  const exportText = () => JSON.stringify(rows.map(strip).sort((a, b) => a.persona.localeCompare(b.persona, "es") || a.fecha.localeCompare(b.fecha)), null, 2);
-  const ioMsg = (t, kind) => status("io-msg", t, kind);
-  let ioMode = "export";
-  $("btn-export").addEventListener("click", () => {
-    ioMode = "export"; $("io-text").value = exportText(); $("io-box").hidden = false; $("io-msg").hidden = true;
-    $("io-help").textContent = "Copia este texto y pégalo completo en el archivo datos.json de tu repositorio (o envíaselo a Claude). Así toda la familia verá estos informes.";
-    $("btn-io").textContent = "Copiar texto";
-  });
-  $("btn-import").addEventListener("click", () => {
-    ioMode = "import"; $("io-text").value = ""; $("io-box").hidden = false; $("io-msg").hidden = true;
-    $("io-help").textContent = "Pega aquí un texto copiado antes con \"Copiar datos\". Se agregará a lo que ya hay en este teléfono.";
-    $("btn-io").textContent = "Agregar informes"; $("io-text").focus();
-  });
-  $("btn-close-io").addEventListener("click", () => { $("io-box").hidden = true; });
-  $("btn-io").addEventListener("click", async () => {
-    const ta = $("io-text");
-    if (ioMode === "export") {
-      try { await navigator.clipboard.writeText(ta.value); ioMsg("Copiado.", "ok"); }
-      catch (_) { ta.focus(); ta.select(); ioMsg("Texto seleccionado: mantén presionado y elige Copiar.", "ok"); }
-      return;
-    }
-    let arr;
-    try { arr = JSON.parse(ta.value); } catch (_) { ioMsg("Ese texto no tiene el formato correcto. Copia de nuevo todo el texto exportado.", "warn"); return; }
-    if (!Array.isArray(arr)) { ioMsg("Ese texto no tiene el formato correcto.", "warn"); return; }
-    const good = arr.map((d) => cleanObj(d, newId(), "local")).filter(Boolean);
-    if (!good.length) { ioMsg("No se encontró ningún informe válido en el texto.", "warn"); return; }
-    if (!putLocal(good)) { ioMsg("No se pudo guardar en este teléfono.", "warn"); return; }
-    renderAll();
-    ioMsg(good.length + (good.length === 1 ? " informe agregado." : " informes agregados.") + (good.length < arr.length ? " Se omitieron " + (arr.length - good.length) + " con datos incompletos." : ""), "ok");
-  });
-
-  // ================= Conexión con GitHub =================
-  function renderGh() {
-    $("gh-on").hidden = !ghToken;
-    $("gh-off").hidden = !!ghToken;
-    const b = $("btn-sync");
-    b.hidden = !ghToken || !local.length;
-    b.textContent = local.length === 1 ? "Subir 1 informe de este teléfono" : "Subir " + local.length + " informes de este teléfono";
+  // ================= Ajustes =================
+  function renderSettings() {
+    const st = $("sb-state");
+    if (cfg) {
+      st.className = "status " + (fuente === "supabase" ? "ok" : "warn");
+      st.textContent = fuente === "supabase" ? "Conectado a Supabase. Todos los informes se guardan ahí." : "Configurado, pero no se pudo conectar a Supabase.";
+    } else { st.className = "status info"; st.textContent = "Sin conectar. Se muestran los datos guardados en el repositorio y no se puede guardar."; }
+    $("sb-form").hidden = !!cfg;
+    $("btn-sb-off").hidden = !cfg || cfg.fixed;
+    $("pin-state").textContent = pin ? "Este teléfono puede guardar informes y marcar pagos." : "Sin PIN este teléfono solo puede ver. El PIN es el que pusiste en el archivo supabase.sql.";
+    $("pin-form").hidden = !!pin;
+    $("btn-pin-off").hidden = !pin;
+    $("pin-row").hidden = true;
   }
-  $("btn-gh-on").addEventListener("click", async () => {
-    const tok = $("gh-token").value.trim();
-    if (!tok) { status("gh-msg", "Pega la clave de GitHub.", "warn"); return; }
-    if (/\s/.test(tok)) { status("gh-msg", "La clave no debe tener espacios. Cópiala otra vez.", "warn"); return; }
-    $("btn-gh-on").disabled = true; status("gh-msg", "Comprobando la clave…", "info");
+  const setMsg2 = (t, k) => status("set-msg", t, k);
+  function keyProblem(key) {
+    if (/^sb_secret_/i.test(key)) return "Esa es la clave secreta. Usa la clave publishable o anon.";
+    if (/^eyJ/.test(key)) {
+      try { const pl = JSON.parse(atob(key.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))); if (pl.role === "service_role") return "Esa es la clave service_role (secreta). Usa la clave anon public."; } catch (_) {}
+    }
+    return null;
+  }
+  $("btn-sb").addEventListener("click", async () => {
+    let url = $("sb-url").value.trim().replace(/\/+$/, "");
+    const key = $("sb-key").value.trim();
+    if (!/^https:\/\/[a-z0-9-]+\.supabase\.(co|in)$/i.test(url)) { setMsg2("La URL debe verse así: https://xxxx.supabase.co", "warn"); return; }
+    if (!key || /\s/.test(key)) { setMsg2("Pega la clave pública completa, sin espacios.", "warn"); return; }
+    const kp = keyProblem(key); if (kp) { setMsg2(kp, "warn"); return; }
+    const conf = { url, key, fixed: false };
+    $("btn-sb").disabled = true; setMsg2("Probando la conexión…", "info");
     try {
-      const r = await fetch("https://api.github.com/repos/" + GH.owner + "/" + GH.repo, { headers: ghHeaders(tok), cache: "no-store" });
-      if (!r.ok) throw ghError(r.status);
-      const { list } = await ghGet(tok);
-      try { localStorage.setItem(TK_KEY, tok); } catch (_) { status("gh-msg", "Este navegador no permite guardar la clave (¿modo incógnito?).", "warn"); return; }
-      ghToken = tok; $("gh-token").value = "";
-      applyShared(list); merge(); renderAll();
-      status("gh-msg", "Listo. Este teléfono ya guarda directo en GitHub." + (local.length ? " Toca el botón para subir los informes que tenías aquí." : ""), "ok");
-    } catch (e) { status("gh-msg", ghWhy(e), "warn"); }
-    finally { $("btn-gh-on").disabled = false; }
+      await sb("/rest/v1/informes?select=persona&limit=1", null, conf);
+      lsSet(CFG_KEY, JSON.stringify({ url, key }));
+      cfg = conf; await loadData(); showBanner("");
+      renderAll(); renderSettings();
+      setMsg2("Conectado. Ahora guarda el PIN de la familia para poder subir informes.", "ok");
+    } catch (e) { setMsg2(sbWhy(e), "warn"); }
+    finally { $("btn-sb").disabled = false; }
   });
-  $("btn-gh-off").addEventListener("click", () => {
-    try { localStorage.removeItem(TK_KEY); } catch (_) {}
-    ghToken = null; merge(); renderAll();
-    status("gh-msg", "Desconectado. La clave se borró de este teléfono.", "info");
+  $("btn-sb-off").addEventListener("click", async () => {
+    lsSet(CFG_KEY, null); cfg = getCfg();
+    try { await loadData(); } catch (_) {}
+    renderAll(); renderSettings(); setMsg2("Proyecto desconectado de este teléfono.", "info");
   });
-  $("btn-sync").addEventListener("click", async () => {
-    if (!ghToken || !local.length) return;
-    const b = $("btn-sync"); b.disabled = true; status("gh-msg", "Subiendo a GitHub…", "info");
+  $("btn-pin").addEventListener("click", async () => {
+    const p = $("pin-set").value.trim();
+    if (!p) { setMsg2("Escribe el PIN.", "warn"); return; }
+    if (fuente !== "supabase") { setMsg2("Primero conecta Supabase.", "warn"); return; }
+    $("btn-pin").disabled = true;
     try {
-      const plain = local.map(strip);
-      applyShared(await ghCommit((list) => upsert(list, plain), "Informes: " + listNames(plain)));
-      const n = local.length; local = []; saveLocal(); merge(); renderAll();
-      status("gh-msg", (n === 1 ? "1 informe subido" : n + " informes subidos") + " a GitHub.", "ok");
-    } catch (e) { status("gh-msg", ghWhy(e), "warn"); }
-    finally { b.disabled = false; }
+      if (!(await rpc("verificar_pin", { p_pin: p }))) { setMsg2("El PIN no es correcto.", "warn"); return; }
+      pin = p; lsSet(PIN_KEY, p); $("pin-set").value = "";
+      renderSettings(); renderAll(); setMsg2("PIN guardado. Este teléfono ya puede guardar informes.", "ok");
+    } catch (e) { setMsg2(sbWhy(e), "warn"); }
+    finally { $("btn-pin").disabled = false; }
   });
+  $("btn-pin-off").addEventListener("click", () => { pin = null; lsSet(PIN_KEY, null); renderSettings(); renderAll(); setMsg2("PIN quitado de este teléfono.", "info"); });
 
   // ================= Inicio =================
   Object.assign(debug, { parseReport, checks, nameFromFile });
-  loadLocal(); merge(); renderAll();
-  // Primero se lee el archivo directo de GitHub (siempre al día); si falla, la copia publicada en la página
-  ghGet(ghToken).then(({ list }) => list).catch(() => fetch("datos.json?v=" + Date.now(), { cache: "no-store" })
-    .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); }))
-    .then((arr) => { applyShared(Array.isArray(arr) ? arr : []); selMonth = null; merge(); renderAll(); })
-    .catch(() => { if (location.protocol !== "file:") showBanner("No se pudo cargar el archivo de la familia (datos.json). Se muestran solo los informes de este teléfono."); merge(); renderAll(); });
+  renderAll(); renderSettings();
+  loadData()
+    .catch((e) => {
+      showBanner(sbWhy(e) + " Se muestran los datos guardados en el repositorio.");
+      const c = cfg; cfg = null;
+      return loadData().catch(() => {}).finally(() => { cfg = c; fuente = "archivo"; });
+    })
+    .then(() => {
+      if (!cfg) showBanner("Conecta Supabase en Ajustes (al final) para guardar informes.");
+      selMonth = null; renderAll(); renderSettings();
+    });
 })();
 </script>
 </body>

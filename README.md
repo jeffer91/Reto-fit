@@ -2,18 +2,27 @@
 
 App para el reto fit en familia con los informes de la báscula RENPHO:
 peso, masa muscular, IMC, masa grasa, % de grasa y puntuación corporal.
+Los datos se guardan en **Supabase**.
 
 **Abrir la app:** https://jeffer91.github.io/Reto-fit/
 
+## Configurar Supabase (una sola vez)
+
+1. Crea un proyecto en [supabase.com](https://supabase.com) (el plan gratis alcanza).
+2. Abre [`supabase.sql`](supabase.sql), cambia `CAMBIA-ESTE-PIN` por el PIN de la familia,
+   y ejecútalo en **SQL Editor → New query → Run**. Crea las tablas, la seguridad y carga los informes que ya había.
+3. En la app, ve a **Ajustes** y pega la *Project URL* y la clave **publishable** (o *anon public*).
+   Para dejarlo fijo para toda la familia, pon esos dos datos en [`config.js`](config.js).
+4. Guarda el PIN en los teléfonos que van a subir informes.
+
+Cualquiera con el link puede ver los datos; solo quien tiene el PIN puede guardar, borrar o marcar pagos.
+
 ## Cómo se usa
 
-1. Toca **Elegir informes** y selecciona uno o varios PDF (o fotos) del informe.
-2. La app lee los valores sola. Revisa cada tarjeta (lo dudoso sale en amarillo) y toca **Guardar todos**.
-3. Elige el **mes** arriba para ver el reglamento de ese mes, la tabla de todos los meses y el % de avance.
-4. **Guardar directo en GitHub:** en la sección *Guardar en GitHub* conecta el teléfono una sola vez
-   con una clave (fine-grained token solo para Reto-fit, permiso *Contents: Read and write*).
-   Desde ahí, "Guardar todos" escribe directo en [`datos.json`](datos.json) en la rama `main`,
-   sin crear ramas, y toda la familia ve los informes al instante.
+1. **Elegir informes**: selecciona uno o varios PDF (o fotos). La app lee los valores sola.
+2. Revisa las tarjetas (lo dudoso sale en amarillo) y toca **Guardar todos**.
+3. Elige el **mes** arriba: reglamento, **lista de pagos**, tabla de todos los meses y % de avance.
+4. En la lista de pagos marca quién ya pagó y usa **Copiar lista para WhatsApp**.
 
 ## Reglamento
 
